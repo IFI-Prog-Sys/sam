@@ -1,0 +1,9 @@
+[Unit]
+Description=Sam the Scraper
+
+[Service]
+ExecStart=/usr/bin/python3 /path/to/main.py
+WorkingDirectory=/path/to/sam/folder
+
+[Install]
+WantedBy=default.target
