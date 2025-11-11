@@ -29,7 +29,7 @@ class Sam():
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"
         }
 
-    def __get_all_raw_events(self) -> str | SamError:
+    def __get_raw_organization_page(self) -> str | SamError:
         """
         @brief Fetch all raw events from the peoply organization page
 
@@ -40,7 +40,7 @@ class Sam():
         """
         try:
             print(f"Sam: Sending request to {self._all_events_endpoint}")
-            response = requests.get(self._all_events_endpoint, timeout=FIVE_SECONDS)
+            response = requests.get(self._all_events_endpoint, headers=self._header ,timeout=FIVE_SECONDS)
             response.raise_for_status()
         except requests.exceptions.HTTPError as error:
             print(f"Sam: Request all events FAIL | HTTP error {error}")
@@ -50,12 +50,30 @@ class Sam():
             print(f"Sam: Request all events FAIL | Unknown error")
             return SamError.UNKNOWN
         else:
-            print(f"Sam: Response OK. Returning... \n{response.text}")
+            print(f"Sam: Response OK. Returning... \n")
             return response.text
+
+    def __extract_organization_json(self, raw_data):
+        soup = BeautifulSoup(raw_data, "lxml")
+        event_metadata = soup.find("script", id="__NEXT_DATA__", type="application/json")
+        if isinstance(event_metadata, Tag):
+            if not event_metadata or not event_metadata.string:
+                print("Sam: Couldn't find event the requested metadata json")
+                return SamError.METADATA_NOT_FOUND
+            try:
+                return json.loads(event_metadata.string)
+            except json.JSONDecodeError:
+                # Sometimes the contents may include whitespace or be malformed; try .get_text() as fallback
+                return json.loads(event_metadata.get_text())
+        else:
+            print(f"Sam: Event metadata wasn't a Tag instance, returning...")
+            return SamError.NOT_A_TAG
 
     def __extract_event_links(self, raw_event_html: str) -> list[str]:
         print(f"Sam: Extracting event links from raw response")
         soup = BeautifulSoup(raw_event_html, "lxml")
+        print(f"Sam: Body recieved in __extract_event_links:")
+        print(soup.prettify())
         event_cards = soup.find_all("a", class_="LargeEventCard_cardWrapper__QACXr", href=True)
 
         print(f"Sam: Length of event cards: {len(event_cards)}")
@@ -140,12 +158,26 @@ class Sam():
         )
 
         return event
+    
+    def __extract_organization_uuid(self, organization_json: dict) -> str | None:
+        props = organization_json.get("props")
+        if props is None: return None
+
+        pageProps = props.get("pageProps")
+        if pageProps is None: return None
+        
+        organization = pageProps.get("organization")
+        if organization is None: return None
+        
+        id = organization.get("id")
+        if id is None: return None
+        return id
 
     def checkForUpdates(self) -> int:
         print(f"Sam: Checking for event updates")
-        all_raw_events_response = self.__get_all_raw_events()
+        organization_page_response = self.__get_raw_organization_page()
 
-        match all_raw_events_response:
+        match organization_page_response:
             case SamError.HTTP:
                 print("Sam: Caught HTTP error from __get_all_raw_events()")
                 print("Sam: -> Returning with no updates")
@@ -155,11 +187,25 @@ class Sam():
                 print("Sam: -> Returning with no updates")
                 return -1
             case str() as text:
-                event_links = self.__extract_event_links(all_raw_events_response)
+                organization_json = self.__extract_organization_json(organization_page_response)
             case _:
                 print("Sam: Encountered unexpected type when checking raw events response")
                 raise TypeError("Unexpected return type from __get_all_raw_events()")
 
+        match organization_json:
+            case SamError.NOT_A_TAG:
+                return -1
+            case SamError.METADATA_NOT_FOUND:
+                return -1
+            case dict() as dictionary:
+                uuid_response = self.__extract_organization_uuid(organization_json)
+                org_uuid = "null" if uuid_response is None else uuid_response
+            case _:
+                return -1
+
+        print(f"Sam: Organization id: {org_uuid}")
+
+        return 0
         for link in event_links:
             raw_event_response = self.__get_raw_event(link)
 
