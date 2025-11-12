@@ -10,6 +10,7 @@ in pkgs.mkShell {
       beautifulsoup4
       requests
       lxml
+      discordpy
     ]))
   ];
 }

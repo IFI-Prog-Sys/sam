@@ -1,32 +1,43 @@
 from sam import *
-from discord_gateway import *
 from time import sleep
 import json
+import discord
 
 SIXTY_SECONDS = 60
-DATA_JSON_PATH = "./data.json"
-
-# Super simple architecture
-# Main loop should probably be an epoll loop that listens to updates
-# sam gives it an update, and this program forwards it to the discord gateway where its formatted and sent to a text channel
-# This file's responsibility is to perform this epoll loop
+DATA_JSON_PATH = "./secrets.json"
 
 def extract_metadata():
     with open(DATA_JSON_PATH, "r") as file:
         external_metadata = json.load(file)
 
     organization_name = external_metadata.get("organization_name")
-    return organization_name
+    channel_id = external_metadata.get("channel_id")
+    api_key = external_metadata.get("discord_api_key")
+    return organization_name, channel_id, api_key
 
-if __name__ == "__main__":
-    ORGANIZATION_NAME = extract_metadata()
+def main():
+    ORGANIZATION_NAME, CHANNEL_ID ,API_KEY = extract_metadata()
     print(f"Main loop: Set organization name to {ORGANIZATION_NAME}")
 
     sam = Sam(ORGANIZATION_NAME)
-    discord_gateway = DiscordGateway()
 
-    while True:
-        sam.updateLatestEvents()
-        sam.extractLatestEvents()
-        print("Main loop: Update done, sleeping for 60")
-        sleep(SIXTY_SECONDS)
+    discord_client_intents = discord.Intents.default()
+    discord_client = discord.Client(intents=discord_client_intents)
+
+    @discord_client.event
+    async def on_ready():
+        await discord_client.change_presence(
+            status = discord.Status.online,
+            activity=discord.Activity(name="Putting my nose to the scrapestone",
+            type=discord.ActivityType.listening))
+        
+        while True:
+            sam.updateLatestEvents()
+            sam.extractLatestEvents()
+            print("Main loop: Update done, sleeping for 60")
+            sleep(SIXTY_SECONDS)
+
+    discord_client.run(API_KEY)
+
+if __name__ == "__main__":
+    main()
