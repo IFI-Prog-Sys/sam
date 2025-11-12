@@ -26,15 +26,7 @@ if __name__ == "__main__":
     discord_gateway = DiscordGateway()
 
     while True:
-        pending_events = sam.checkForUpdates()
-
-        if pending_events == -1:
-            print(f"Main loop: Sam encountered an ERROR")
-
-        elif pending_events > 0:
-            events = sam.getLatestEvents()
-            print(events)
-        else:
-            print(f"Main loop: No new events found")
-
+        sam.updateLatestEvents()
+        sam.extractLatestEvents()
+        print("Main loop: Update done, sleeping for 60")
         sleep(SIXTY_SECONDS)

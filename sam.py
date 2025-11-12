@@ -8,10 +8,9 @@ from datetime import datetime, timezone
 FIVE_SECONDS = 5
 
 class Comparison(Enum):
-    LEFT_GREATER = -1
-    EQUAL = 0
-    RIGHT_GREATER = 1
-
+    EVENT_VALID = 0
+    EVENT_EXPIRED = 1
+    EVENT_ONGOING = 2
 
 class SamError(Enum):
     HTTP = 1
@@ -24,7 +23,7 @@ class SamError(Enum):
 class Event:
     title: str
     description: str
-    datetime: datetime
+    datetime: datetime | str
     place: str
     link: str
 
@@ -44,21 +43,21 @@ class Sam():
 
         self._pending_events: list[Event] = list()
         self._last_update = self.__get_curent_formatted_time()
+        self._cached_event_ids: list[str] = list()
 
     def __get_curent_formatted_time(self):
         current_utc_time = datetime.now(timezone.utc)
         formatted_time = current_utc_time.isoformat(timespec="milliseconds").replace("+00:00", "Z")
         return formatted_time
     
-    def __compare_time(self, left, right) -> Comparison:
-        left_parsed = datetime.fromisoformat(left)
-        right_parsed = datetime.fromisoformat(right)
-        if left_parsed < right_parsed:
-            return Comparison.RIGHT_GREATER
-        elif left_parsed > right_parsed:
-            return Comparison.LEFT_GREATER
+    def __compare_time(self, current_time, event_time) -> Comparison:
+        currnet_time_parsed = datetime.fromisoformat(current_time)
+        if currnet_time_parsed < event_time:
+            return Comparison.EVENT_VALID
+        elif currnet_time_parsed > event_time:
+            return Comparison.EVENT_EXPIRED
         else:
-            return Comparison.EQUAL
+            return Comparison.EVENT_ONGOING
 
     def __get_raw_organization_page(self) -> str | SamError:
         try:
@@ -171,24 +170,57 @@ class Sam():
         else:
             return fetched_attribute
         
+    def __purge_expired_events(self):
+        current_time = self.__get_curent_formatted_time()
+        to_be_deleted = list()
+
+        for event in self._pending_events:
+            comparison_result = self.__compare_time(current_time, event.datetime)
+
+            match comparison_result:
+                case Comparison.EVENT_VALID:
+                    continue
+                case Comparison.EVENT_EXPIRED:
+                    to_be_deleted.append(event)
+                case Comparison.EVENT_ONGOING:
+                    to_be_deleted.append(event)
+
+        for event in to_be_deleted:
+            self._pending_events.remove(event)
+        
+    def __event_exists_in_cache(self, raw_event_json) -> int:
+        link_id = raw_event_json.get("urlId")
+        if link_id is None:
+            print("Sam: CRITICAL link_id was None when checking if exists in cache. Falling back to 'assume exists'")
+            return True
+
+        if link_id in self._cached_event_ids:
+            return True
+        else:
+            self._cached_event_ids.append(link_id)
+            return False
+        
     def __parse_raw_event_data(self, raw_event_json) -> Event:
-        title = self.__safe_json_get("title", raw_event_json)
-        description = self.__safe_json_get("description", raw_event_json)
         start_date = self.__safe_json_get("startDate", raw_event_json)
-        place = self.__safe_json_get("locationName", raw_event_json)
         link_id = self.__safe_json_get("urlId", raw_event_json)
 
         event = Event(
-            title = title,
-            description = description,
-            datetime = datetime.fromisoformat(start_date),
-            place = place,
+            title = self.__safe_json_get("title", raw_event_json),
+            description = self.__safe_json_get("description", raw_event_json),
+            datetime = datetime.fromisoformat(start_date) if start_date != "null" else datetime(year = 0, month = 0, day = 0),
+            place = self.__safe_json_get("locationName", raw_event_json),
             link = f"https://peoply.app/events/{link_id}"
         )
 
         return event
     
+    def __non_redundant_event_add(self, raw_event):
+        if self.__event_exists_in_cache(raw_event): return
+        event = self.__parse_raw_event_data(raw_event)
+        self._pending_events.append(event)
+    
     def __update_sam_events_list(self):
+        self.__purge_expired_events()
         get_events_response = self.__get_latest_raw_events()
 
         match get_events_response:
@@ -202,12 +234,10 @@ class Sam():
                 print(f"Sam: Update events list FAIL | JSON_CONVERSION error. Not commiting to update.")
                 return
             case dict() as d:
-                event = self.__parse_raw_event_data(get_events_response)
-                self._pending_events.append(event)
+                self.__non_redundant_event_add(get_events_response)
             case list() as l:
                 for raw_event in get_events_response:
-                    event = self.__parse_raw_event_data(raw_event)
-                    self._pending_events.append(event)
+                    self.__non_redundant_event_add(raw_event)
             case _:
                 print(f"Sam: Unknown case occured in __update_sam_events_list(). Panic! Exiting...")
                 exit(1)
@@ -219,4 +249,5 @@ class Sam():
         self.__update_sam_events_list()
 
     def extractLatestEvents(self) -> list[Event]:
+        print(f"Sam: Length of pending events: {len(self._pending_events)}")
         return self._pending_events
