@@ -1,9 +1,8 @@
-from sam import *
-from time import sleep
 import json
 import discord
+from sam import Sam
+from discord_gateway import DiscordGateway
 
-SIXTY_SECONDS = 60
 DATA_JSON_PATH = "./secrets.json"
 
 def extract_metadata():
@@ -16,28 +15,13 @@ def extract_metadata():
     return organization_name, channel_id, api_key
 
 def main():
-    ORGANIZATION_NAME, CHANNEL_ID ,API_KEY = extract_metadata()
+    ORGANIZATION_NAME, CHANNEL_ID, API_KEY = extract_metadata()
     print(f"Main loop: Set organization name to {ORGANIZATION_NAME}")
 
+    intents = discord.Intents.default()
     sam = Sam(ORGANIZATION_NAME)
-
-    discord_client_intents = discord.Intents.default()
-    discord_client = discord.Client(intents=discord_client_intents)
-
-    @discord_client.event
-    async def on_ready():
-        await discord_client.change_presence(
-            status = discord.Status.online,
-            activity=discord.Activity(name="Putting my nose to the scrapestone",
-            type=discord.ActivityType.listening))
-        
-        while True:
-            sam.updateLatestEvents()
-            sam.extractLatestEvents()
-            print("Main loop: Update done, sleeping for 60")
-            sleep(SIXTY_SECONDS)
-
-    discord_client.run(API_KEY)
+    client = DiscordGateway(sam=sam, channel_id=CHANNEL_ID, intents=intents)
+    client.run(API_KEY)
 
 if __name__ == "__main__":
     main()
