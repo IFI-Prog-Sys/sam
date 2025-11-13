@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
 from bs4 import BeautifulSoup, Tag
-import requests
 import json
 from datetime import datetime, timezone
 import aiohttp

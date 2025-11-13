@@ -9,7 +9,6 @@ in pkgs.mkShell {
       # Python packages here
       beautifulsoup4
       lxml
-      requests
       discordpy
       aiohttp
     ]))
