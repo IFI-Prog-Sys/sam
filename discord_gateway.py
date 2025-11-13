@@ -44,21 +44,23 @@ class DiscordGateway(discord.Client):
                 print(f"Channel {self.channel_id} not found.")
                 return
 
-            # Compose a message for any new pending events
-            # You can track which were just added by comparing lengths or refactoring Sam to return newly added
-            """
             if events:
-                # Keep messages short to avoid rate limits; chunk if needed
-                lines = []
-                for ev in events:
-                    lines.append(f"- {ev.title} at {ev.place} on {ev.datetime.isoformat()} -> {ev.link}")
-                msg = "\n".join(lines)
-                await channel.send(f"Latest events:\n{msg}")
+                for event in events:
+                    human_readable_time = event.datetime.strftime("%d.%m.%Y | kl. %H:%M")
+
+                    await channel.send(
+                        "## 🔔 Arrangement varsel 🔔\n"+
+                        f"**Hva?** {event.title}\n"+
+                        f"{event.description}\n"+
+                        f"**Når?** {human_readable_time}\n"+
+                        f"**Hvor?** {event.place}\n"+
+                        f"**Påmelding:** {event.link}\n"
+                        )
             else:
                 print("No pending events to announce.")
-        except Exception as e:
-            print(f"Periodic update failed: {e}")
-            """
+        except Exception as error:
+            print(f"Periodic update failed: {error}")
+
         finally:
             print("TRY OK LOL")
 

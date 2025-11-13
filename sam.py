@@ -58,7 +58,6 @@ class Sam():
         self._organization_uuid = await self.__updateOrganizationUuid()
         print(f"Sam: Set organization UUID to {self._organization_uuid}")
 
-
     def __get_curent_formatted_time(self):
         current_utc_time = datetime.now(timezone.utc)
         formatted_time = current_utc_time.isoformat(timespec="milliseconds").replace("+00:00", "Z")
@@ -148,7 +147,6 @@ class Sam():
             case _:
                 raise RuntimeError("Unexpected organization JSON type")
 
-        print(f"Sam: Organization id: {org_uuid}")
         return org_uuid
     
     async def __get_latest_raw_events(self):
