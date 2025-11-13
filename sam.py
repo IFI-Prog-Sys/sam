@@ -23,7 +23,7 @@ class SamError(Enum):
 class Event:
     title: str
     description: str
-    datetime: datetime | str
+    datetime: datetime
     place: str
     link: str
 

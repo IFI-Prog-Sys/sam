@@ -11,6 +11,10 @@ class DiscordGateway(discord.Client):
         self.sam = sam
         self.channel_id = channel_id
 
+        # Keep track of sent messages for events for future editing
+        # TODO: Add a garbage collector that deletes message objects for expired events
+        self._sent_messages: dict[Event, discord.Message] = {}
+
     async def setup_hook(self):
         # Ensure Sam is initialized before the task runs (UUID fetch etc.)
         await self.sam.init()
@@ -40,15 +44,19 @@ class DiscordGateway(discord.Client):
 
             # Example: Post updates to the channel (only new ones; sam handles cache)
             channel = self.get_channel(self.channel_id)
+
             if channel is None:
                 print(f"Channel {self.channel_id} not found.")
+                return
+            if not isinstance(channel, discord.channel.TextChannel):
+                print(f"Channel {self.channel_id} is of invalid type: {type(channel)}")
                 return
 
             if events:
                 for event in events:
                     human_readable_time = event.datetime.strftime("%d.%m.%Y | kl. %H:%M")
 
-                    await channel.send(
+                    self._sent_messages[event] = await channel.send(
                         "## 🔔 Arrangement varsel 🔔\n"+
                         f"**Hva?** {event.title}\n"+
                         f"{event.description}\n"+
