@@ -18,8 +18,11 @@ def main():
     ORGANIZATION_NAME, CHANNEL_ID, API_KEY = extract_metadata()
     print(f"Main loop: Set organization name to {ORGANIZATION_NAME}")
 
+    CHANNEL_ID = int(CHANNEL_ID)
+
     intents = discord.Intents.default()
     sam = Sam(ORGANIZATION_NAME)
+    print(f"CAHNNEL ID -> {CHANNEL_ID}")
     client = DiscordGateway(sam=sam, channel_id=CHANNEL_ID, intents=intents)
     client.run(API_KEY)
 

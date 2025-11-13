@@ -38,12 +38,13 @@ class Sam():
         }
         self._api_header = {
             "Accept": "application/json",
-            "User-Agent": "SamTheScraper/0.5 (+https://progsys.no)"
+            "User-Agent": "SamTheScraper/0.6 (+https://progsys.no)"
         }
 
         self._organization_page_endpoint = f"https://peoply.app/orgs/{peoply_organization_name}"
         self._pending_events: list[Event] = []
         self._cached_event_ids: list[str] = []
+        self._outbound_event_queue: list[Event] = []
         self._last_update = self.__get_curent_formatted_time()
 
         # Externally provided session preferred; otherwise create lazily on first request
@@ -222,6 +223,7 @@ class Sam():
             return
         event = self.__parse_raw_event_data(raw_event)
         self._pending_events.append(event)
+        self._outbound_event_queue.append(event)
     
     async def __update_sam_events_list(self):
         self.__purge_expired_events()
@@ -254,8 +256,10 @@ class Sam():
         await self.__update_sam_events_list()
 
     def extractLatestEvents(self) -> list[Event]:
-        print(f"Sam: Length of pending events: {len(self._pending_events)}")
-        return self._pending_events
+        print(f"Sam: Length of outbound events: {len(self._outbound_event_queue)}")
+        outbound_event_queue = self._outbound_event_queue
+        self._outbound_event_queue = []
+        return outbound_event_queue
     
     async def close(self):
         if self._session and not self._session.closed:
