@@ -8,9 +8,10 @@ in pkgs.mkShell {
     python3.withPackages (python-pkgs: with python-pkgs; [
       # Python packages here
       beautifulsoup4
-      requests
       lxml
+      requests
       discordpy
+      aiohttp
     ]))
   ];
 }
