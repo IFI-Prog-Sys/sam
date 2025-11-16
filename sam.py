@@ -23,8 +23,10 @@ class SamError(Enum):
 class Event:
     title: str
     description: str
-    datetime: datetime | str
+    date_time: datetime
+    last_updated: datetime 
     place: str
+    id: str
     link: str
 
 class Sam():
@@ -42,8 +44,8 @@ class Sam():
         }
 
         self._organization_page_endpoint = f"https://peoply.app/orgs/{peoply_organization_name}"
-        self._pending_events: list[Event] = []
-        self._cached_event_ids: list[str] = []
+        self._pending_events: dict[str, Event] = {}
+        self._cached_event_ids: dict[str, datetime] = {}
         self._outbound_event_queue: list[Event] = []
         self._last_update = self.__get_curent_formatted_time()
 
@@ -63,11 +65,10 @@ class Sam():
         formatted_time = current_utc_time.isoformat(timespec="milliseconds").replace("+00:00", "Z")
         return formatted_time
     
-    def __compare_time(self, current_time, event_time) -> Comparison:
-        currnet_time_parsed = datetime.fromisoformat(current_time)
-        if currnet_time_parsed < event_time:
+    def __compare_time(self, current_time: datetime, event_time: datetime) -> Comparison:
+        if current_time < event_time:
             return Comparison.EVENT_VALID
-        elif currnet_time_parsed > event_time:
+        elif current_time > event_time:
             return Comparison.EVENT_EXPIRED
         else:
             return Comparison.EVENT_ONGOING
@@ -175,42 +176,62 @@ class Sam():
             return fetched_attribute
         
     def __purge_expired_events(self):
-        current_time = self.__get_curent_formatted_time()
+        current_time = datetime.fromisoformat(self.__get_curent_formatted_time())
         to_be_deleted = []
 
-        for event in self._pending_events:
-            comparison_result = self.__compare_time(current_time, event.datetime)
+        for event_key in self._pending_events.keys():
+            event = self._pending_events[event_key]
+            comparison_result = self.__compare_time(current_time, event.date_time)
 
             match comparison_result:
                 case Comparison.EVENT_VALID:
                     continue
                 case Comparison.EVENT_EXPIRED | Comparison.EVENT_ONGOING:
-                    to_be_deleted.append(event)
+                    to_be_deleted.append(event_key)
 
-        for event in to_be_deleted:
-            self._pending_events.remove(event)
+        for event_key in to_be_deleted:
+            del self._pending_events[event_key]
         
     def __event_exists_in_cache(self, raw_event_json) -> int:
         link_id = raw_event_json.get("urlId")
-        if link_id is None:
-            print("Sam: CRITICAL link_id was None when checking if exists in cache. Falling back to 'assume exists'")
+        last_updated = datetime.fromisoformat(self.__safe_json_get("updatedAt", raw_event_json))
+
+        # Check for errors first
+        if link_id is None or last_updated == "null":
+            print("Sam: CRITICAL json integrity isssue when checking if event exist in cache. Falling back to 'assume exists'")
             return True
 
-        if link_id in self._cached_event_ids:
-            return True
+        # Check for redundancy after
+        if link_id in self._cached_event_ids.keys():
+            old_time = self._cached_event_ids[link_id]
+            time_comparison_verdict = self.__compare_time(old_time, last_updated)
+            print(f"Compared old time {old_time} with last updated {last_updated}")
+            print(f"Verdict: {time_comparison_verdict}")
+            match time_comparison_verdict:
+                case Comparison.EVENT_EXPIRED:
+                    print("Sam: CRITICAL older updatedAt time than latest __event_exists_in_cache. Falling back to 'assume exists'")
+                    return True
+                case Comparison.EVENT_ONGOING:
+                    return True
+                case Comparison.EVENT_VALID:
+                    self._cached_event_ids[link_id] = last_updated # Update cache with new last updated time
+                    return False
         else:
-            self._cached_event_ids.append(link_id)
+            self._cached_event_ids[link_id] = last_updated
             return False
         
     def __parse_raw_event_data(self, raw_event_json) -> Event:
         start_date = self.__safe_json_get("startDate", raw_event_json)
+        last_updated = self.__safe_json_get("updatedAt", raw_event_json)
         link_id = self.__safe_json_get("urlId", raw_event_json)
 
         event = Event(
             title = self.__safe_json_get("title", raw_event_json),
             description = self.__safe_json_get("description", raw_event_json),
-            datetime = datetime.fromisoformat(start_date) if start_date != "null" else datetime(year = 1, month = 1, day = 1),
+            date_time = datetime.fromisoformat(start_date) if start_date != "null" else datetime(year = 1, month = 1, day = 1),
+            last_updated = datetime.fromisoformat(last_updated) if last_updated != "null" else datetime(year = 1, month = 1, day = 1),
             place = self.__safe_json_get("locationName", raw_event_json),
+            id = link_id,
             link = f"https://peoply.app/events/{link_id}"
         )
 
@@ -220,7 +241,7 @@ class Sam():
         if self.__event_exists_in_cache(raw_event):
             return
         event = self.__parse_raw_event_data(raw_event)
-        self._pending_events.append(event)
+        self._pending_events[event.id] = event
         self._outbound_event_queue.append(event)
     
     async def __update_sam_events_list(self):
