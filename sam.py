@@ -31,6 +31,7 @@ class Event:
 
 class Sam():
     def __init__(self, peoply_organization_name: str, session: aiohttp.ClientSession | None = None):
+        print(f"Sam:Sam - Initialising Sam")
         self._http_header = {
             "User-Agent": (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -55,10 +56,14 @@ class Sam():
         # Initialize UUID asynchronously later via init() to avoid sync call in __init__
         self._organization_uuid: str = "null"
 
+        print(f"Sam:Sam - Initialising Sam 1/2 DONE.")
+
 
     async def init(self):
         self._organization_uuid = await self.__updateOrganizationUuid()
-        print(f"Sam: Set organization UUID to {self._organization_uuid}")
+        print(f"Sam:Sam - Fetched organization UID: {self._organization_uuid}.")
+        print(f"Sam:Sam - Initialising Sam 2/2 DONE.")
+        print(f"Sam:Sam - Initialising Sam OK.")
 
     def __get_curent_formatted_time(self):
         current_utc_time = datetime.now(timezone.utc)
@@ -81,17 +86,15 @@ class Sam():
 
     async def __get_raw_organization_page(self) -> str | SamError:
         try:
-            print(f"Sam: Sending request to {self._organization_page_endpoint}")
             session = await self.__get_session()
             async with session.get(self._organization_page_endpoint, headers=self._http_header) as response:
                 if response.status >= 400:
-                    print(f"Sam: Request all events FAIL | HTTP error {response.status}")
+                    print(f"Sam:Sam - Request all events FAIL | HTTP error {response.status}")
                     return SamError.HTTP
                 text = await response.text()
-                print(f"Sam: Response OK. Returning... \n")
                 return text
         except aiohttp.ClientError as error:
-            print(f"Sam: Request all events FAIL | Unknown error: {error}")
+            print(f"Sam:Sam - Request all events FAIL | Unknown error: {error}")
             return SamError.UNKNOWN
 
     def __extract_organization_json(self, raw_data):
@@ -99,7 +102,7 @@ class Sam():
         event_metadata = soup.find("script", id="__NEXT_DATA__", type="application/json")
         if isinstance(event_metadata, Tag):
             if not event_metadata or not event_metadata.string:
-                print("Sam: Couldn't find event the requested metadata json")
+                print("Sam:Sam - Couldn't find the requested metadata")
                 return SamError.METADATA_NOT_FOUND
             try:
                 return json.loads(event_metadata.string)
@@ -107,7 +110,7 @@ class Sam():
                 # Sometimes the contents may include whitespace or be malformed; try .get_text() as fallback
                 return json.loads(event_metadata.get_text())
         else:
-            print(f"Sam: Event metadata wasn't a Tag instance, returning...")
+            print(f"Sam:Sam - Event metadata wasn't a Tag instance, returning...")
             return SamError.NOT_A_TAG
 
     def __extract_organization_uuid(self, organization_json: dict) -> str | None:
@@ -125,7 +128,6 @@ class Sam():
         return id
 
     async def __updateOrganizationUuid(self) -> str:
-        print(f"Sam: Starting UUID update")
         organization_page_response = await self.__get_raw_organization_page()
         org_uuid = "null"
 
@@ -156,16 +158,16 @@ class Sam():
             session = await self.__get_session()
             async with session.get(api_endpoint, headers=self._api_header) as response:
                 if response.status >= 400:
-                    print(f"Sam: Request API endpoint FAIL | HTTP error {response.status}")
+                    print(f"Sam:Sam - Request API endpoint FAIL | HTTP error {response.status}")
                     return SamError.HTTP
                 # resp.json() is async
                 json_data = await response.json(content_type=None)
                 return json_data
         except aiohttp.ClientError as error:
-            print(f"Sam: Request API endpoint FAIL | Unknown error: {error}")
+            print(f"Sam:Sam - Request API endpoint FAIL | Unknown error: {error}")
             return SamError.UNKNOWN
         except (json.JSONDecodeError, ValueError) as error:
-            print(f"Sam: Parse API reply to JSON FAIL | {error}")
+            print(f"Sam:Sam - Parse API reply to JSON FAIL | {error}")
             return SamError.JSON_CONVERSION
         
     def __safe_json_get(self, attribute, json_file) -> str:
@@ -189,6 +191,10 @@ class Sam():
                 case Comparison.EVENT_EXPIRED | Comparison.EVENT_ONGOING:
                     to_be_deleted.append(event_key)
 
+        if len(to_be_deleted) > 0:
+            print(f"Sam:Sam - Event garbage collector -> {len(to_be_deleted)} candidates found for deletion. Purging...")
+            print(f"Sam:Sam - Event garbage collector -> New pending event queue size: {len(self._pending_events)}")
+
         for event_key in to_be_deleted:
             del self._pending_events[event_key]
         
@@ -198,18 +204,16 @@ class Sam():
 
         # Check for errors first
         if link_id is None or last_updated == "null":
-            print("Sam: CRITICAL json integrity isssue when checking if event exist in cache. Falling back to 'assume exists'")
+            print("Sam:Sam - CRITICAL json integrity isssue when checking if event exist in cache. Falling back to 'assume exists'")
             return True
 
         # Check for redundancy after
         if link_id in self._cached_event_ids.keys():
             old_time = self._cached_event_ids[link_id]
             time_comparison_verdict = self.__compare_time(old_time, last_updated)
-            print(f"Compared old time {old_time} with last updated {last_updated}")
-            print(f"Verdict: {time_comparison_verdict}")
             match time_comparison_verdict:
                 case Comparison.EVENT_EXPIRED:
-                    print("Sam: CRITICAL older updatedAt time than latest __event_exists_in_cache. Falling back to 'assume exists'")
+                    print("Sam:Sam - CRITICAL older updatedAt time than latest __event_exists_in_cache. Falling back to 'assume exists'")
                     return True
                 case Comparison.EVENT_ONGOING:
                     return True
@@ -250,13 +254,13 @@ class Sam():
 
         match get_events_response:
             case SamError.HTTP:
-                print(f"Sam: Update events list FAIL | HTTP error. Not committing to update.")
+                print(f"Sam:Sam - Update events list FAIL | HTTP error. Not committing to update.")
                 return
             case SamError.UNKNOWN:
-                print(f"Sam: Update events list FAIL | UNKNOWN network error. Not committing to update.")
+                print(f"Sam:Sam - Update events list FAIL | UNKNOWN network error. Not committing to update.")
                 return
             case SamError.JSON_CONVERSION:
-                print(f"Sam: Update events list FAIL | JSON_CONVERSION error. Not committing to update.")
+                print(f"Sam:Sam - Update events list FAIL | JSON_CONVERSION error. Not committing to update.")
                 return
             case dict():
                 # Some endpoints may return a single dict instead of list
@@ -265,21 +269,23 @@ class Sam():
                 for raw_event in get_events_response:
                     self.__non_redundant_event_add(raw_event)
             case _:
-                print(f"Sam: Unknown case occurred in __update_sam_events_list(). Panic! Exiting...")
+                print(f"Sam:Sam - Unknown case occurred in __update_sam_events_list(). Panic! Exiting...")
                 return
 
         self._last_update = self.__get_curent_formatted_time()
-        print(f"Sam: Pending events: {self._pending_events}")
 
     async def updateLatestEvents(self):
         await self.__update_sam_events_list()
 
     def extractLatestEvents(self) -> list[Event]:
-        print(f"Sam: Length of outbound events: {len(self._outbound_event_queue)}")
         outbound_event_queue = self._outbound_event_queue
+        if len(outbound_event_queue) > 0:
+            print(f"Sam:Sam - Update fetched -> {len(outbound_event_queue)} new/updated events found")
+            print(f"Sam:Sam - {len(self._pending_events)} events currently being managed in pending event queue")
         self._outbound_event_queue = []
         return outbound_event_queue
     
     async def close(self):
+        print(f"Sam:Sam - Closing Sam. Goodbye!")
         if self._session and not self._session.closed:
             await self._session.close()
