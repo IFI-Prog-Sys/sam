@@ -71,22 +71,20 @@ class DiscordGateway(discord.Client):
             await self.sam.updateLatestEvents()
             events = self.sam.extractLatestEvents()
 
-            if len(events) > 0:
+            if events:
                 print(f"Sam:DiscordGateway - Update Events Task Loop -> {len(events)} new/modified events recieved")
 
-            # Example: Post updates to the channel (only new ones; sam handles cache)
-            channel = self.get_channel(self.channel_id)
+                # Example: Post updates to the channel (only new ones; sam handles cache)
+                channel = self.get_channel(self.channel_id)
 
-            if channel is None:
-                print(f"Channel {self.channel_id} not found.")
-                return
-            if not isinstance(channel, discord.channel.TextChannel):
-                print(f"Channel {self.channel_id} is of invalid type: {type(channel)}")
-                return
+                if channel is None:
+                    print(f"Channel {self.channel_id} not found.")
+                    return
+                if not isinstance(channel, discord.channel.TextChannel):
+                    print(f"Channel {self.channel_id} is of invalid type: {type(channel)}")
+                    return
 
-            print(f"Sam:DiscordGateway - Update Events Task Loop -> Connected to channel")
-
-            if events:
+                print(f"Sam:DiscordGateway - Update Events Task Loop -> Connected to channel")
                 for event in events:
                     human_readable_time = event.date_time.strftime("%d.%m.%Y | kl. %H:%M")
 

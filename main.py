@@ -17,7 +17,7 @@ def extract_metadata():
 def main():
     print(f"Sam:Main - Extracting metadata from secrets.json")
     ORGANIZATION_NAME, CHANNEL_ID, API_KEY = extract_metadata()
-    print(f"Sam:Main - Found metadata:\tOrg name: {ORGANIZATION_NAME}\n\tChannel ID: {CHANNEL_ID}\n\tAPI KEY LENGTH: {len(API_KEY)}")
+    print(f"Sam:Main - Found metadata:\n\tOrg name: {ORGANIZATION_NAME}\n\tChannel ID: {CHANNEL_ID}\n\tAPI KEY LENGTH: {len(API_KEY)}")
 
     CHANNEL_ID = int(CHANNEL_ID)
     intents = discord.Intents.default()
