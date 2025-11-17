@@ -18,7 +18,8 @@ sam/
 ```
 
 ## Getting started
-**Warning:** Sam requires Python >= 3.10
+__**Warning:** Sam requires Python >= 3.10__
+
 **Note:** Sam has currently been tested on Python 3.13.8 running on NixOS 25.05
 
 1. Install all the project dependencies with:
