@@ -8,7 +8,7 @@ Discord channel.
 The bot runs on Python, but is launched and managed by systemd.
 
 ## File structure
-**Note:** Only files necesarry for runtime are included
+**Note:** Only files necessary for runtime are included
 ```
 sam/
 ├── discord_gateway.py
