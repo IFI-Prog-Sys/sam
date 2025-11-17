@@ -25,6 +25,7 @@ sam/
 $ pip install -r requirements.txt
 ```
 **Note:** If you prefer; a nix.shell file can be found on the development branch.
+
 2. Create an application in the Discord Developer Portal
 3. Copy the secret application API key to the value under "discord\_api\_key:" in secrets.json
 4. Copy your server's desired output channel ID to the value under "channel\_id:" in secrets.json
