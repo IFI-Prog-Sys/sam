@@ -1,5 +1,5 @@
 # Sam the Scraper
-Prog.Sys();'s one and only Progsys scraper bot
+Prog.Sys();'s one and only Peoply scraper bot
 
 ## Basic Overview
 Sam is a Python bot that pulls event metadata for the specified organization from Peoply.app and posts it in a
