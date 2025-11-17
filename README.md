@@ -30,7 +30,7 @@ sam/
     - Attach Files
     - Mention @everyone, @here and All Roles
     - **Note:** There is a good chance not all these permissions are strictly speaking necessary but these are what have worked for us.
-6. Edit "sam.service" and specify the "ExecStart" target (main.py) and "WorkingDirectory (path to sam files)"
+6. Edit "sam.service" (found under "install\_files") and specify the "ExecStart" target (main.py) and "WorkingDirectory (path to sam files)"
 7. Copy the provided sam.service file into "/etc/systemd/user/" 
 8. Start the service by running
 ```bash
