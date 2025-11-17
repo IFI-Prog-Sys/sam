@@ -20,10 +20,15 @@ sam/
 ## Getting started
 **Note:** Sam has currently been tested on Python 3.13.8 running on NixOS 25.05
 
-1. Create an application in the Discord Developer Portal
-2. Copy the secret application API key to the value under "discord\_api\_key:" in secrets.json
-3. Copy your server's desired output channel ID to the value under "channel\_id:" in secrets.json
-4. Invite your new Discord application into your server with the following permissions:
+1. Install all the project dependencies with:
+```bash
+$ pip install -r requirements.txt
+```
+**Note:** If you prefer; a nix.shell file can be found on the development branch.
+2. Create an application in the Discord Developer Portal
+3. Copy the secret application API key to the value under "discord\_api\_key:" in secrets.json
+4. Copy your server's desired output channel ID to the value under "channel\_id:" in secrets.json
+5. Invite your new Discord application into your server with the following permissions:
     - View Channels
     - Send Messages
     - Send Messages in Threads
