@@ -20,7 +20,7 @@ sam/
 ## Getting started
 __**Warning:** Sam requires Python >= 3.10__
 
-**Note:** Sam has currently been tested on Python 3.13.8 running on NixOS 25.05
+**Note:** Sam has currently been tested on Python 3.13.8 running on NixOS 25.05, and on Python 3.12.9 running on Oracle Linux Server release 9.6
 
 1. Install all the project dependencies with:
 ```bash
