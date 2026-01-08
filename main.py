@@ -2,7 +2,7 @@
 Main file for the Sam the Scraper bot
 ~~~~~~~~~~~~~~~~~~~
 
-Responsible for extracting JSON program data,
+Responsible for loading configuration,
 initiating all relevant classes and connecting them together
 
 :copyright: (c) 2025-present IFI-PROGSYS
@@ -52,31 +52,25 @@ logger.addHandler(handler_error)
 
 def get_config_data(config_path: str) -> tuple[str, str, str]:
     """
-    Read program metadata from the JSON file at DATA_JSON_PATH and return
-    the three expected fields.
+    Reads configuration data from a YAML file and environment variables.
 
-    The function opens the file at the module-level constant DATA_JSON_PATH
-    using UTF-8 encoding, parses it as JSON, and returns a 3-tuple with the
-    values of the following keys (in this order):
+    This function loads configuration from the specified YAML file, expecting
+    'organization_name' and 'channel_id'. It also retrieves the Discord API
+    key from the 'SAM_API_KEY' environment variable.
 
-    - "organization_name": the human-readable name of the organization (str or None)
-    - "channel_id": the channel identifier used by the program (str/int or None)
-    - "discord_api_key": the API key/secret used for Discord integration (str or None)
+    The program will exit with a status code of 1 if the config file cannot be
+    found or is malformed, or if any of the required configuration values
+    are missing.
+
+    Parameters
+    ----------
+    config_path : str
+        The path to the configuration YAML file.
 
     Returns
     -------
-    tuple:
-        (organization_name, channel_id, api_key) where each item will be the
-        value from the JSON file or None if the key is not present.
-
-    Raises
-    ------
-    FileNotFoundError
-        If the file at DATA_JSON_PATH does not exist.
-    json.JSONDecodeError
-        If the file contents are not valid JSON.
-    OSError
-        For other I/O related errors when opening/reading the file.
+    tuple[str, str, str]
+        A tuple containing the organization name, channel ID, and API key.
     """
 
     def load_config():
@@ -114,11 +108,12 @@ def get_config_data(config_path: str) -> tuple[str, str, str]:
 
 def main():
     """
-    main function of the main file. Calls extract_metadata(), handles
-    the returned program metadata, initiates Sam and DiscordGateway, and
-    connects the two together.
+    Main entry point for the Sam the Scraper bot.
+
+    This function loads the configuration, initializes the main 'Sam' logic
+    and the 'DiscordGateway' client, and then starts the bot.
     """
-    logger.info("Starting Sam...")
+    logger.info("Starting Sam...Welcome!")
 
     organization_name, channel_id, api_key = get_config_data(CONFIG_PATH)
     logger.info("Config loaded! Found org name: %s, channel id %s and API key", organization_name, channel_id)
@@ -135,5 +130,4 @@ def main():
     client.run(api_key)
 
 if __name__ == "__main__":
-    print("Sam:Main - Starting up... Welcome!")
     main()
