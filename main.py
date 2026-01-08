@@ -8,17 +8,49 @@ initiating all relevant classes and connecting them together
 :copyright: (c) 2025-present IFI-PROGSYS
 :license: MIT, see LICENSE for more details.
 
+▗▄▄▖  ▗▄▖ ▗▖ ▗▖▗▄▄▄▖▗▄▄▖ ▗▄▄▄▖▗▄▄▄
+▐▌ ▐▌▐▌ ▐▌▐▌ ▐▌▐▌   ▐▌ ▐▌▐▌   ▐▌  █
+▐▛▀▘ ▐▌ ▐▌▐▌ ▐▌▐▛▀▀▘▐▛▀▚▖▐▛▀▀▘▐▌  █
+▐▌   ▝▚▄▞▘▐▙█▟▌▐▙▄▄▖▐▌ ▐▌▐▙▄▄▖▐▙▄▄▀
+▗▄▄▖▗▖  ▗▖
+▐▌ ▐▌▝▚▞▘
+▐▛▀▚▖ ▐▌
+▐▙▄▞▘ ▐▌
+▗▄▄▄▖▗▖  ▗▖ ▗▄▄▖▗▄▄▖ ▗▄▄▖ ▗▄▄▄▖ ▗▄▄▖ ▗▄▄▖ ▗▄▖
+▐▌   ▐▌  ▐▌▐▌   ▐▌ ▐▌▐▌ ▐▌▐▌   ▐▌   ▐▌   ▐▌ ▐▌
+▐▛▀▀▘▐▌  ▐▌ ▝▀▚▖▐▛▀▘ ▐▛▀▚▖▐▛▀▀▘ ▝▀▚▖ ▝▀▚▖▐▌ ▐▌
+▐▙▄▄▖ ▝▚▞▘ ▗▄▄▞▘▐▌   ▐▌ ▐▌▐▙▄▄▖▗▄▄▞▘▗▄▄▞▘▝▚▄▞▘
 """
 
-import json
+import logging
+import sys
+from os import environ
 import discord
+import yaml
 from sam import Sam
 from discord_gateway import DiscordGateway
 
-DATA_JSON_PATH = "./secrets.json"
+CONFIG_PATH = "./config.yaml"
 
+logger = logging.getLogger("Sam.Main")
+logger.setLevel(logging.DEBUG)
 
-def extract_metadata():
+# systemd already tracks date and time so the redundancy is unnecessary
+logger_formatter = logging.Formatter("[%(levelname)s] %(name)s: %(message)s")
+
+handler_info = logging.StreamHandler(sys.stdout)
+handler_info.setLevel(logging.INFO)
+handler_info.addFilter(lambda r: r.levelno < logging.ERROR)  # keep stdout to < ERROR
+handler_info.setFormatter(logger_formatter)
+
+handler_error = logging.StreamHandler(sys.stderr)
+handler_error.setLevel(logging.ERROR)
+handler_error.setFormatter(logger_formatter)
+
+logger.addHandler(handler_info)
+logger.addHandler(handler_error)
+
+def get_config_data(config_path: str) -> tuple[str, str, str]:
     """
     Read program metadata from the JSON file at DATA_JSON_PATH and return
     the three expected fields.
@@ -47,14 +79,38 @@ def extract_metadata():
         For other I/O related errors when opening/reading the file.
     """
 
-    with open(DATA_JSON_PATH, "r", encoding="utf-8") as file:
-        external_metadata = json.load(file)
+    def load_config():
+        try:
+            with open(config_path, "r", encoding="utf-8") as file:
+                config = yaml.safe_load(file)
+                if isinstance(config, dict):
+                    return config
+                raise Exception
+        except yaml.YAMLError:
+            logger.error("Malformed config.yaml file. Could not load.")
+            sys.exit(1)
+        except Exception:
+            logger.error("Unexpected behaviour when trying to load config")
+            sys.exit(1)
 
-    organization_name = external_metadata.get("organization_name")
-    channel_id = external_metadata.get("channel_id")
-    api_key = external_metadata.get("discord_api_key")
+    def safe_get(config: dict, key: str) -> str:
+        element = config.get(key)
+        if element is None:
+            human_readable_key = " ".join(key.split("_"))
+            logger.error("Couldn't load %s from config file", human_readable_key)
+            sys.exit(1)
+        return element
+
+    config = load_config()
+
+    organization_name = safe_get(config, "organization_name")
+    channel_id = safe_get(config, "channel_id")
+    api_key = environ.get("SAM_API_KEY")
+    if api_key is None:
+        logger.error("Couldn't load Discord API key from enviromental variables")
+        sys.exit(1)
+
     return organization_name, channel_id, api_key
-
 
 def main():
     """
@@ -62,26 +118,21 @@ def main():
     the returned program metadata, initiates Sam and DiscordGateway, and
     connects the two together.
     """
+    logger.info("Starting Sam...")
 
-    print("Sam:Main - Extracting metadata from secrets.json")
-    organization_name, channel_id, api_key = extract_metadata()
-    print(
-        "Sam:Main - Found metadata:\n"
-        + f"\tOrg name: {organization_name}\n"
-        + f"\tChannel ID: {channel_id}\n"
-        + "\tAPI KEY LENGTH: {len(API_KEY)}"
-    )
+    organization_name, channel_id, api_key = get_config_data(CONFIG_PATH)
+    logger.info("Config loaded! Found org name: %s, channel id %s and API key", organization_name, channel_id)
 
     channel_id = int(channel_id)
     intents = discord.Intents.default()
-    print("Sam:Main - Set Discord intentions OK")
-    sam = Sam(organization_name)
-    print("Sam:Main - Started Sam OK")
-    client = DiscordGateway(sam=sam, channel_id=channel_id, intents=intents)
-    print("Sam:Main - Started DiscordGateway OK")
-    print("Sam:Main - Running Discord bot client...")
-    client.run(api_key)
+    logger.info("Set Discord intents to default")
 
+    sam = Sam(organization_name)
+    logger.info("Started Sam OK")
+
+    client = DiscordGateway(sam=sam, channel_id=channel_id, intents=intents)
+    logger.info("Started Discord Gateway OK. Running...")
+    client.run(api_key)
 
 if __name__ == "__main__":
     print("Sam:Main - Starting up... Welcome!")
