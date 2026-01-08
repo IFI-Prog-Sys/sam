@@ -11,12 +11,31 @@ A basic interface class meant to connect Sam the Scraper and the Discord API.
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import logging
+import sys
 import discord
 from discord.ext import tasks
 from sam import Sam
 
 SIXTY_SECONDS = 60
 
+logger = logging.getLogger("Sam.DiscordGateway")
+logger.setLevel(logging.DEBUG)
+
+# systemd already tracks date and time so the redundancy is unnecessary
+logger_formatter = logging.Formatter("[%(levelname)s] %(name)s: %(message)s")
+
+handler_info = logging.StreamHandler(sys.stdout)
+handler_info.setLevel(logging.INFO)
+handler_info.addFilter(lambda r: r.levelno < logging.ERROR)  # keep stdout to < ERROR
+handler_info.setFormatter(logger_formatter)
+
+handler_error = logging.StreamHandler(sys.stderr)
+handler_error.setLevel(logging.ERROR)
+handler_error.setFormatter(logger_formatter)
+
+logger.addHandler(handler_info)
+logger.addHandler(handler_error)
 
 @dataclass
 class EventMessage:
@@ -31,7 +50,6 @@ class EventMessage:
 
     message: discord.Message
     expires: datetime
-
 
 class DiscordGateway(discord.Client):
     """
@@ -55,14 +73,14 @@ class DiscordGateway(discord.Client):
             **kwargs: Additional keyword arguments forwarded to discord.Client.
         """
 
-        print("Sam:DiscordGateway - Initialising Discord Gateway")
+        logging.info("Initialising Discord Gateway")
         super().__init__(**kwargs)
         self.sam = sam
         self.channel_id = channel_id
 
         # Keep track of sent messages for events for future editing
         self._sent_messages: dict[str, EventMessage] = {}  # event id -> message id
-        print("Sam:DiscordGateway - Initialising Discord Gateway 1/3 DONE")
+        logging.info("Initialising Discord Gateway 1/3 DONE")
 
     async def setup_hook(self):
         """
@@ -74,7 +92,7 @@ class DiscordGateway(discord.Client):
 
         # Ensure Sam is initialized before the task runs (UUID fetch etc.)
         await self.sam.init()
-        print("Sam:DiscordGateway - Initialising Discord Gateway 2/3 DONE")
+        logging.info("Initialising Discord Gateway 2/3 DONE")
         # Create the loop task; start it in setup_hook to ensure loop is ready
         self.periodic_update_events.start()
 
@@ -93,12 +111,12 @@ class DiscordGateway(discord.Client):
             ),
         )
         if self.user is None:
-            print("Discord Gateway: self.user init issue")
+            logging.error("self.user init issue")
             return
 
-        print("Sam:DiscordGateway - Initialising Discord Gateway 3/3 DONE")
-        print("Sam:DiscordGateway - Initialising Discord Gateway OK")
-        print(f"Sam:DiscordGateway - Logged in as {self.user} (ID: {self.user.id})")
+        logging.info("Initialising Discord Gateway 3/3 DONE")
+        logging.info("Initialising Discord Gateway OK")
+        logging.info("Logged in as %s (ID: %s)", self.user, self.user.id)
 
     def __event_garbage_collector(self):
         """
@@ -116,14 +134,8 @@ class DiscordGateway(discord.Client):
                 chopping_block.append(event_message_key)
 
         if len(chopping_block) > 0:
-            print(
-                "Sam:DiscordGateway - Event garbage collector ->"
-                + f"{len(chopping_block)} candidates found for deletion. Purging..."
-            )
-            print(
-                "Sam:DiscordGateway - Event garbage collector ->"
-                + f"New event message queue size: {len(self._sent_messages)}"
-            )
+            logging.info("Garbage collector found %s candidates for deletion. Purging...", len(chopping_block))
+            logging.info("New event message queue size: %s", len(self._sent_messages))
 
         for purge_candidate_key in chopping_block:
             del self._sent_messages[purge_candidate_key]
@@ -148,26 +160,23 @@ class DiscordGateway(discord.Client):
             events = self.sam.extract_latest_events()
 
             if events:
-                print(
-                    "Sam:DiscordGateway - Update Events Task Loop ->"
-                    + f"{len(events)} new/modified events recieved"
-                )
+                logger.info("%s new/modified events received", len(events))
 
                 # Example: Post updates to the channel (only new ones; sam handles cache)
                 channel = self.get_channel(self.channel_id)
 
                 if channel is None:
-                    print(f"Channel {self.channel_id} not found.")
+                    logger.error("Channel %s not found.", self.channel_id)
                     return
                 if not isinstance(channel, discord.channel.TextChannel):
-                    print(
-                        f"Channel {self.channel_id} is of invalid type: {type(channel)}"
+                    logger.error(
+                        "Channel %s is of invalid type: %s",
+                        self.channel_id,
+                        type(channel),
                     )
                     return
 
-                print(
-                    "Sam:DiscordGateway - Update Events Task Loop -> Connected to channel"
-                )
+                logger.info("Connected to channel %s", self.channel_id)
                 for event in events:
                     human_readable_time = event.date_time.strftime(
                         "%d.%m.%Y | kl. %H:%M"
@@ -184,10 +193,7 @@ class DiscordGateway(discord.Client):
                             + f"__**Hvor?**__ {event.place}\n"
                             + f"__**Påmelding:**__ {event.link}\n"
                         )
-                        print(
-                            "Sam:DiscordGateway - Update Events Task Loop ->"
-                            + f"Updated event {event.id} with new metadata"
-                        )
+                        logger.info("Updated event %s with new metadata", event.id)
 
                     # Or send a new one
                     else:
@@ -202,16 +208,10 @@ class DiscordGateway(discord.Client):
                             message=message, expires=event.date_time
                         )
                         self._sent_messages[event.id] = event_message
-                        print(
-                            "Sam:DiscordGateway - Update Events Task Loop ->"
-                            + f"Created event {event.id}"
-                        )
-                print(
-                    "Sam:DiscordGateway - Update Events Task Loop ->"
-                    + f"Currently managing {len(self._sent_messages)} events"
-                )
+                        logger.info("Created event %s", event.id)
+                logger.info("Currently managing %s events", len(self._sent_messages))
         except Exception as error:
-            print(f"Periodic update failed: {error}")
+            logger.error("Periodic update failed: %s", error)
 
         finally:
             self.__event_garbage_collector()
