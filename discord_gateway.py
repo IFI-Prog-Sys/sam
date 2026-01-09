@@ -156,6 +156,7 @@ class DiscordGateway(discord.Client):
         finally block to ensure state remains consistent.
         """
         try:
+            await self.sam.purge_expired_events()
             await self.sam.update_latest_events()
             events = self.sam.extract_latest_events()
 
