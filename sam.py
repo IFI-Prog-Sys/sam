@@ -12,11 +12,30 @@ import json
 from dataclasses import dataclass
 from enum import Enum
 from datetime import datetime, timezone
+import logging
+import sys
 import aiohttp
 from bs4 import BeautifulSoup, Tag
 
 TEN_SECONDS = 10
 
+logger = logging.getLogger("Sam.Sam")
+logger.setLevel(logging.DEBUG)
+
+# systemd already tracks date and time so the redundancy is unnecessary
+logger_formatter = logging.Formatter("[%(levelname)s] %(name)s: %(message)s")
+
+handler_info = logging.StreamHandler(sys.stdout)
+handler_info.setLevel(logging.INFO)
+handler_info.addFilter(lambda r: r.levelno < logging.ERROR)  # keep stdout to < ERROR
+handler_info.setFormatter(logger_formatter)
+
+handler_error = logging.StreamHandler(sys.stderr)
+handler_error.setLevel(logging.ERROR)
+handler_error.setFormatter(logger_formatter)
+
+logger.addHandler(handler_info)
+logger.addHandler(handler_error)
 
 class Comparison(Enum):
     """
@@ -31,7 +50,6 @@ class Comparison(Enum):
     EVENT_VALID = 0
     EVENT_EXPIRED = 1
     EVENT_ONGOING = 2
-
 
 class SamError(Enum):
     """
@@ -50,7 +68,6 @@ class SamError(Enum):
     METADATA_NOT_FOUND = 3
     NOT_A_TAG = 4
     JSON_CONVERSION = 5
-
 
 @dataclass
 class Event:
@@ -74,7 +91,6 @@ class Event:
     place: str
     id: str
     link: str
-
 
 class Sam:
     """
@@ -106,7 +122,7 @@ class Sam:
             I/O in the constructor.
         """
         print("Sam:Sam - Initialising Sam")
-        self._http_header = {
+        self._regular_header = {
             "User-Agent": (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -118,13 +134,14 @@ class Sam:
             "User-Agent": "SamTheScraper/1.0 (+https://github.com/IFI-Prog-Sys/sam/)",
         }
 
-        self._organization_page_endpoint = (
-            f"https://peoply.app/orgs/{peoply_organization_name}"
-        )
+        self._organization_name = peoply_organization_name
+
+        # TODO this smells like the problem child
         self._pending_events: dict[str, Event] = {}
         self._cached_event_ids: dict[str, datetime] = {}
         self._outbound_event_queue: list[Event] = []
         self._last_update = self.__get_curent_formatted_time()
+        self._last_extraction = self.__get_curent_formatted_time()
 
         # Externally provided session preferred; otherwise create lazily on first request
         self._session = session
@@ -145,7 +162,7 @@ class Sam:
             RuntimeError, TypeError: If the organization page or metadata cannot
             be fetched or parsed.
         """
-        self._organization_uuid = await self.__update_organization_uuid()
+        self._organization_uuid = await self.__get_organization_uuid()
         print(f"Sam:Sam - Fetched organization UID: {self._organization_uuid}.")
         print("Sam:Sam - Initialising Sam 2/2 DONE.")
         print("Sam:Sam - Initialising Sam OK.")
@@ -196,86 +213,7 @@ class Sam:
             self._session = aiohttp.ClientSession(timeout=timeout)
         return self._session
 
-    async def __get_raw_organization_page(self) -> str | SamError:
-        """
-        Fetch the raw HTML for the organization's Peoply page.
-
-        Returns:
-            The response text on success, or a SamError on failure.
-        """
-        try:
-            session = await self.__get_session()
-            async with session.get(
-                self._organization_page_endpoint, headers=self._http_header
-            ) as response:
-                if response.status >= 400:
-                    print(
-                        f"Sam:Sam - Request all events FAIL | HTTP error {response.status}"
-                    )
-                    return SamError.HTTP
-                text = await response.text()
-                return text
-        except aiohttp.ClientError as error:
-            print(f"Sam:Sam - Request all events FAIL | Unknown error: {error}")
-            return SamError.UNKNOWN
-
-    def __extract_organization_json(self, raw_data):
-        """
-        Parse the organization's HTML page and extract the embedded Next.js JSON.
-
-        Args:
-            raw_data: The HTML string of the organization's page.
-
-        Returns:
-            A dict containing the parsed JSON, or a SamError indicating the reason
-            for failure.
-        """
-        soup = BeautifulSoup(raw_data, "lxml")
-        event_metadata = soup.find(
-            "script", id="__NEXT_DATA__", type="application/json"
-        )
-        if isinstance(event_metadata, Tag):
-            if not event_metadata or not event_metadata.string:
-                print("Sam:Sam - Couldn't find the requested metadata")
-                return SamError.METADATA_NOT_FOUND
-            try:
-                return json.loads(event_metadata.string)
-            except json.JSONDecodeError:
-                # Sometimes the contents may include whitespace
-                # or be malformed; try .get_text() as fallback
-                return json.loads(event_metadata.get_text())
-        else:
-            print("Sam:Sam - Event metadata wasn't a Tag instance, returning...")
-            return SamError.NOT_A_TAG
-
-    def __extract_organization_uuid(self, organization_json: dict) -> str | None:
-        """
-        Traverse the Next.js JSON object to extract the organization UUID.
-
-        Args:
-            organization_json: Parsed JSON dictionary from the org page.
-
-        Returns:
-            The organization UUID string if found, otherwise None.
-        """
-        props = organization_json.get("props")
-        if props is None:
-            return None
-
-        page_props = props.get("pageProps")
-        if page_props is None:
-            return None
-
-        organization = page_props.get("organization")
-        if organization is None:
-            return None
-
-        id = organization.get("id")
-        if id is None:
-            return None
-        return id
-
-    async def __update_organization_uuid(self) -> str:
+    async def __get_organization_uuid(self) -> str:
         """
         Resolve and return the organization's UUID by scraping the org page.
 
@@ -286,7 +224,87 @@ class Sam:
             RuntimeError: When required metadata is missing or malformed.
             TypeError: If the organization page fetch returns an unexpected type.
         """
-        organization_page_response = await self.__get_raw_organization_page()
+
+        async def get_raw_organization_page() -> str | SamError:
+            """
+            Fetch the raw HTML for the organization's Peoply page.
+
+            Returns:
+                The response text on success, or a SamError on failure.
+            """
+            try:
+                session = await self.__get_session()
+                async with session.get(
+                    f"https://peoply.app/orgs/{self._organization_name}", headers=self._regular_header
+                ) as response:
+                    if response.status >= 400:
+                        print(
+                            f"Sam:Sam - Request all events FAIL | HTTP error {response.status}"
+                        )
+                        return SamError.HTTP
+                    text = await response.text()
+                    return text
+            except aiohttp.ClientError as error:
+                print(f"Sam:Sam - Request all events FAIL | Unknown error: {error}")
+                return SamError.UNKNOWN
+
+        def extract_organization_json(raw_data):
+            """
+            Parse the organization's HTML page and extract the embedded Next.js JSON.
+
+            Args:
+                raw_data: The HTML string of the organization's page.
+
+            Returns:
+                A dict containing the parsed JSON, or a SamError indicating the reason
+                for failure.
+            """
+            soup = BeautifulSoup(raw_data, "lxml")
+            event_metadata = soup.find(
+                "script", id="__NEXT_DATA__", type="application/json"
+            )
+            if isinstance(event_metadata, Tag):
+                if not event_metadata or not event_metadata.string:
+                    print("Sam:Sam - Couldn't find the requested metadata")
+                    return SamError.METADATA_NOT_FOUND
+                try:
+                    return json.loads(event_metadata.string)
+                except json.JSONDecodeError:
+                    # Sometimes the contents may include whitespace
+                    # or be malformed; try .get_text() as fallback
+                    return json.loads(event_metadata.get_text())
+            else:
+                print("Sam:Sam - Event metadata wasn't a Tag instance, returning...")
+                return SamError.NOT_A_TAG
+
+        def extract_organization_uuid(organization_json: dict) -> str | None:
+            """
+            Traverse the Next.js JSON object to extract the organization UUID.
+
+            Args:
+                organization_json: Parsed JSON dictionary from the org page.
+
+            Returns:
+                The organization UUID string if found, otherwise None.
+            """
+            props = organization_json.get("props")
+            if props is None:
+                return None
+
+            page_props = props.get("pageProps")
+            if page_props is None:
+                return None
+
+            organization = page_props.get("organization")
+            if organization is None:
+                return None
+
+            id = organization.get("id")
+            if id is None:
+                return None
+            return id
+
+        organization_page_response = await get_raw_organization_page()
         org_uuid = "null"
 
         if organization_page_response in (SamError.HTTP, SamError.UNKNOWN):
@@ -297,7 +315,7 @@ class Sam:
         if not isinstance(organization_page_response, str):
             raise TypeError("Unexpected return type from __get_raw_organization_page()")
 
-        organization_json = self.__extract_organization_json(organization_page_response)
+        organization_json = extract_organization_json(organization_page_response)
 
         match organization_json:
             case SamError.NOT_A_TAG:
@@ -305,7 +323,7 @@ class Sam:
             case SamError.METADATA_NOT_FOUND:
                 raise RuntimeError("Organization metadata not found")
             case dict():
-                uuid_response = self.__extract_organization_uuid(organization_json)
+                uuid_response = extract_organization_uuid(organization_json)
                 org_uuid = "null" if uuid_response is None else uuid_response
             case _:
                 raise RuntimeError("Unexpected organization JSON type")
@@ -328,12 +346,14 @@ class Sam:
                         f"Sam:Sam - Request API endpoint FAIL | HTTP error {response.status}"
                     )
                     return SamError.HTTP
-                # resp.json() is async
+
                 json_data = await response.json(content_type=None)
                 return json_data
+
         except aiohttp.ClientError as error:
             print(f"Sam:Sam - Request API endpoint FAIL | Unknown error: {error}")
             return SamError.UNKNOWN
+
         except (json.JSONDecodeError, ValueError) as error:
             print(f"Sam:Sam - Parse API reply to JSON FAIL | {error}")
             return SamError.JSON_CONVERSION
@@ -383,7 +403,7 @@ class Sam:
         for event_key in to_be_deleted:
             del self._pending_events[event_key]
 
-    def __event_exists_in_cache(self, raw_event_json) -> int:
+    def __event_exists_in_cache(self, raw_event_json) -> bool:
         """
         Determine whether a raw event payload already exists in cache without updates.
 
@@ -493,7 +513,6 @@ class Sam:
             Gracefully handles HTTP, network, and JSON parsing errors by
             logging and skipping the commit.
         """
-        self.__purge_expired_events()
         get_events_response = await self.__get_latest_raw_events()
 
         match get_events_response:
@@ -525,6 +544,9 @@ class Sam:
                 return
 
         self._last_update = self.__get_curent_formatted_time()
+
+    def purge_expired_events(self):
+        self.__purge_expired_events()
 
     async def update_latest_events(self):
         """
