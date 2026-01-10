@@ -4,8 +4,8 @@ Peoply.app API interaction manager
 
 A basic async API data fetcher and processor.
 
-© 2025-present IFI-PROGSYS
-License: MIT, see LICENSE for more details.
+:copyright: (c) 2025-present IFI-PROGSYS
+:license: MIT, see LICENSE for more details.
 """
 
 import json
@@ -548,6 +548,11 @@ class Sam:
         self._last_update = events_last_updated
 
     def purge_expired_events(self): # Step 1 of update schedule in Discord Gateway
+        """
+        Public method to trigger the expiration of events.
+
+        This wraps the internal purge routine to be called by external schedulers.
+        """
         self.__purge_expired_events()
 
     async def update_latest_events(self): # Step 2 of update schedule in Discord Gateway
