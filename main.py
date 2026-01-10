@@ -59,7 +59,7 @@ class ConfigData:
     database_path: str
     api_key: str
 
-def get_config_data(config_path: str) -> ConfigData
+def get_config_data(config_path: str) -> ConfigData:
     """
     Reads configuration data from a YAML file and environment variables.
 
@@ -144,7 +144,7 @@ def main():
     intents = discord.Intents.default()
     logger.info("Set Discord intents to default")
 
-    sam = Sam(config_data.organization_name)
+    sam = Sam(config_data.organization_name, config_data.database_path)
     logger.info("Started Sam OK")
 
     client = DiscordGateway(sam=sam, channel_id=channel_id, intents=intents)

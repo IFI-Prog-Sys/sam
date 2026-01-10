@@ -143,16 +143,33 @@ class Sam:
         self._organization_name = peoply_organization_name
 
         self._cached_events: dict[str, Event] = {}
+        # This refers to Sam's last update, as opposed to the Event dataclass that keeps track of the server's last update timestamp
         self._sam_event_last_updated: dict[str, datetime] = {}
         self._outbound_event_queue: list[Event] = []
         self._last_update = self.__get_curent_formatted_time()
-        self._last_extraction = self.__get_curent_formatted_time()
 
         # Externally provided session preferred; otherwise create lazily on first request
         self._session = session
 
         # Initialize UUID asynchronously later via init() to avoid sync call in __init__
         self._organization_uuid: str = "null"
+
+        self._database_connection = sqlite3.connect(database_path)
+        self._database_cursor = self._database_connection.cursor()
+        logger.info("Connect to database OK")
+
+        query_result = self._database_cursor.execute("SELECT * FROM sqlite_master")
+        table_not_exist = query_result.fetchone is None
+        if table_not_exist:
+            logger.info("Database was empty; Creating new table")
+            self._database_cursor.execute(
+                "CREATE TABLE events(title, description, date_time, last_updated, place, id link)"
+            )
+            logger.info("Create Table OK")
+        else:
+            logger.info("Database already populdated. Recalling events")
+            self.__recall_past_events()
+            logger.info("Recall OK")
 
         logger.info("Initialising Sam 1/2 DONE.")
 
@@ -171,6 +188,30 @@ class Sam:
         logger.info(f"Fetched organization UID: {self._organization_uuid}.")
         logger.info("Initialising Sam 2/2 DONE.")
         logger.info("Initialising Sam OK.")
+
+    def __deserialize_raw_event(self, raw_event: tuple) -> Event:
+        event = Event(
+            title = raw_event[0],
+            description=raw_event[1],
+            date_time=datetime.fromisoformat(raw_event[2]),
+            last_updated=datetime.fromisoformat(raw_event[3]),
+            place=raw_event[4],
+            id=raw_event[5],
+            link=raw_event[6]
+        )
+        return event
+
+    def __recall_past_events(self):
+        result = self._database_cursor.execute("SELECT * FROM events")
+        all_raw_events = result.fetchall()
+
+        for raw_event in all_raw_events:
+            event = self.__deserialize_raw_event(raw_event)
+            self._sam_event_last_updated[event.id] = event.last_updated
+            self._cached_events[event.id] = event
+        
+        logger.info(f"Recalled {len(all_raw_events)} events")
+        self.__purge_expired_events()
 
     def __get_curent_formatted_time(self):
         """
@@ -405,6 +446,10 @@ class Sam:
 
         for event_key in to_be_deleted:
             del self._cached_events[event_key]
+            self._database_cursor.execute(f"""
+            DELETE FROM events
+            WHERE id={event_key}
+            """)
 
     def __event_exists_in_cache(self, raw_event_json) -> bool:
         """
@@ -508,6 +553,12 @@ class Sam:
         self._cached_events[event.id] = event
         self._outbound_event_queue.append(event)
 
+        self._database_cursor.execute(f"""
+            INSERT INTO events VALUES
+            ('{event.title}', '{event.description}', '{event.date_time}', '{event.last_updated}', '{event.place}', '{event.id}', '{event.link}')
+        """)
+        self._database_connection.commit()
+
     async def __update_sam_events_list(self):
         """
         Refresh the internal list of events from the Peoply API.
@@ -601,3 +652,6 @@ class Sam:
         logger.info("Closing Sam. Goodbye!")
         if self._session and not self._session.closed:
             await self._session.close()
+
+        self._database_connection.commit()
+        self._database_connection.close()
