@@ -14,6 +14,7 @@ from enum import Enum
 from datetime import datetime, timezone
 import logging
 import sys
+import sqlite3
 import aiohttp
 from bs4 import BeautifulSoup, Tag
 
@@ -110,6 +111,7 @@ class Sam:
     def __init__(
         self,
         peoply_organization_name: str,
+        database_path: str,
         session: aiohttp.ClientSession | None = None,
     ):
         """
