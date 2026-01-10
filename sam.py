@@ -146,7 +146,8 @@ class Sam:
         self._organization_name = peoply_organization_name
 
         self._cached_events: dict[str, Event] = {}
-        # This refers to Sam's last update, as opposed to the Event dataclass that keeps track of the server's last update timestamp
+        # This refers to Sam's last update, as opposed to the Event dataclass that keeps
+        # track of the server's last update timestamp
         self._sam_event_last_updated: dict[str, datetime] = {}
         self._outbound_event_queue: list[Event] = []
         self._last_update = self.__get_curent_formatted_time()
@@ -194,13 +195,13 @@ class Sam:
 
     def __deserialize_raw_event(self, raw_event: tuple) -> Event:
         event = Event(
-            title = raw_event[0],
+            title=raw_event[0],
             description=raw_event[1],
             date_time=datetime.fromisoformat(raw_event[2]),
             last_updated=datetime.fromisoformat(raw_event[3]),
             place=raw_event[4],
             id=raw_event[5],
-            link=raw_event[6]
+            link=raw_event[6],
         )
         return event
 
@@ -212,7 +213,7 @@ class Sam:
             event = self.__deserialize_raw_event(raw_event)
             self._sam_event_last_updated[event.id] = event.last_updated
             self._cached_events[event.id] = event
-        
+
         logger.info(f"Recalled {len(all_raw_events)} events")
         self.__purge_expired_events()
 

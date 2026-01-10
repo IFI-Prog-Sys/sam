@@ -26,7 +26,6 @@ from dataclasses import dataclass
 import logging
 import sys
 from os import environ
-import dataclasses
 import discord
 import yaml
 from sam import Sam
@@ -52,12 +51,28 @@ handler_error.setFormatter(logger_formatter)
 logger.addHandler(handler_info)
 logger.addHandler(handler_error)
 
+
 @dataclass
 class ConfigData:
+    """
+    A dataclass to hold the configuration data for the application.
+
+    Attributes
+    ----------
+    organization_name : str
+        The name of the organization.
+    channel_id : str
+        The ID of the target Discord channel.
+    database_path : str
+        The file path to the SQLite database.
+    api_key : str
+        The Discord API key used for authentication.
+    """
     organization_name: str
     channel_id: str
     database_path: str
     api_key: str
+
 
 def get_config_data(config_path: str) -> ConfigData:
     """
@@ -118,7 +133,7 @@ def get_config_data(config_path: str) -> ConfigData:
         organization_name=organization_name,
         channel_id=channel_id,
         database_path=database_path,
-        api_key=api_key
+        api_key=api_key,
     )
 
     return config_data
