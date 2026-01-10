@@ -11,10 +11,10 @@ The bot runs on Python, but is launched and managed by systemd.
 **Note:** Only files necessary for runtime are included
 ```
 sam/
+├── config.yaml
 ├── discord_gateway.py
 ├── main.py
-├── sam.py
-└── secrets.json
+└── sam.py
 ```
 
 ## Getting started
@@ -29,8 +29,8 @@ $ pip install -r requirements.txt
 **Note:** If you prefer; a nix.shell file can be found on the development branch.
 
 2. Create an application in the Discord Developer Portal
-3. Copy the secret application API key to the value under "discord\_api\_key:" in secrets.json
-4. Copy your server's desired output channel ID to the value under "channel\_id:" in secrets.json
+3. Edit `config.yaml` and set the `organization_name`, `channel_id`, and `database_path`.
+4. Obtain your Discord Application API key. This will need to be provided as the `SAM_API_KEY` environment variable.
 5. Invite your new Discord application into your server with the following permissions:
     - View Channels
     - Send Messages
@@ -38,7 +38,10 @@ $ pip install -r requirements.txt
     - Attach Files
     - Mention @everyone, @here and All Roles
     - **Note:** There is a good chance not all these permissions are strictly speaking necessary but these are what have worked for us.
-6. Edit "sam.service" (found under "install\_files") and specify the "ExecStart" target (main.py) and "WorkingDirectory (path to sam files)"
+6. Edit "sam.service" (found under "install\_files"):
+    - Specify the `ExecStart` path (python3 and main.py)
+    - Specify the `WorkingDirectory` (path to sam files)
+    - Set the `SAM_API_KEY` environment variable
 7. Copy the provided sam.service file into "/etc/systemd/user/" 
 8. Start the service by running
 ```bash
@@ -48,4 +51,4 @@ $ systemctl --user start sam.service
 ```bash
 $ systemctl --user enable sam.service
 ```
-**Warning:** Sam's event memory is not yet persistent so duplicate messages may occur after reboot.
+**Note:** Sam uses a SQLite database to persist event history across restarts.
