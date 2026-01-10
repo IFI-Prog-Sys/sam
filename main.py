@@ -64,8 +64,8 @@ def get_config_data(config_path: str) -> ConfigData:
     Reads configuration data from a YAML file and environment variables.
 
     This function loads configuration from the specified YAML file, expecting
-    'organization_name' and 'channel_id'. It also retrieves the Discord API
-    key from the 'SAM_API_KEY' environment variable.
+    'organization_name', 'channel_id' and 'database_path'. It also retrieves
+    the Discord API key from the 'SAM_API_KEY' environment variable.
 
     The program will exit with a status code of 1 if the config file cannot be
     found or is malformed, or if any of the required configuration values
@@ -78,8 +78,8 @@ def get_config_data(config_path: str) -> ConfigData:
 
     Returns
     -------
-    tuple[str, str, str]
-        A tuple containing the organization name, channel ID, and API key.
+    ConfigData
+        A dataclass containing the organization name, channel ID, database path and API key.
     """
 
     def load_config():

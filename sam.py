@@ -105,6 +105,7 @@ class Sam:
     - Discovers and stores the organization UUID used for API requests.
     - Polls Peoply.app for new or updated events since the last update time.
     - Maintains an in-memory cache to avoid redundant event processing.
+    - Persists events to a SQLite database to allow state recovery between restarts.
     - Provides a queue of deduplicated Event instances for downstream consumers.
     """
 
@@ -120,6 +121,8 @@ class Sam:
         Args:
             peoply_organization_name: The organization slug/name used to locate
                 the organization page and derive the internal UUID.
+            database_path: The file path to the SQLite database used for
+                persistent event storage.
             session: Optional externally managed aiohttp.ClientSession. If not
                 provided, Sam will lazily create and manage its own session.
 
@@ -648,6 +651,7 @@ class Sam:
 
         - Logs shutdown message.
         - Closes the aiohttp session if it is owned and still open.
+        - Commits any pending changes and closes the database connection.
         """
         logger.info("Closing Sam. Goodbye!")
         if self._session and not self._session.closed:
