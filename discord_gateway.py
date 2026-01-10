@@ -37,6 +37,7 @@ handler_error.setFormatter(logger_formatter)
 logger.addHandler(handler_info)
 logger.addHandler(handler_error)
 
+
 @dataclass
 class EventMessage:
     """
@@ -50,6 +51,7 @@ class EventMessage:
 
     message: discord.Message
     expires: datetime
+
 
 class DiscordGateway(discord.Client):
     """
@@ -134,7 +136,10 @@ class DiscordGateway(discord.Client):
                 chopping_block.append(event_message_key)
 
         if len(chopping_block) > 0:
-            logging.info("Garbage collector found %s candidates for deletion. Purging...", len(chopping_block))
+            logging.info(
+                "Garbage collector found %s candidates for deletion. Purging...",
+                len(chopping_block),
+            )
             logging.info("New event message queue size: %s", len(self._sent_messages))
 
         for purge_candidate_key in chopping_block:

@@ -22,9 +22,11 @@ initiating all relevant classes and connecting them together
 ▐▙▄▄▖ ▝▚▞▘ ▗▄▄▞▘▐▌   ▐▌ ▐▌▐▙▄▄▖▗▄▄▞▘▗▄▄▞▘▝▚▄▞▘
 """
 
+from dataclasses import dataclass
 import logging
 import sys
 from os import environ
+import dataclasses
 import discord
 import yaml
 from sam import Sam
@@ -50,13 +52,20 @@ handler_error.setFormatter(logger_formatter)
 logger.addHandler(handler_info)
 logger.addHandler(handler_error)
 
-def get_config_data(config_path: str) -> tuple[str, str, str]:
+@dataclass
+class ConfigData:
+    organization_name: str
+    channel_id: str
+    database_path: str
+    api_key: str
+
+def get_config_data(config_path: str) -> ConfigData:
     """
     Reads configuration data from a YAML file and environment variables.
 
     This function loads configuration from the specified YAML file, expecting
-    'organization_name' and 'channel_id'. It also retrieves the Discord API
-    key from the 'SAM_API_KEY' environment variable.
+    'organization_name', 'channel_id' and 'database_path'. It also retrieves
+    the Discord API key from the 'SAM_API_KEY' environment variable.
 
     The program will exit with a status code of 1 if the config file cannot be
     found or is malformed, or if any of the required configuration values
@@ -69,8 +78,8 @@ def get_config_data(config_path: str) -> tuple[str, str, str]:
 
     Returns
     -------
-    tuple[str, str, str]
-        A tuple containing the organization name, channel ID, and API key.
+    ConfigData
+        A dataclass containing the organization name, channel ID, database path and API key.
     """
 
     def load_config():
@@ -99,12 +108,21 @@ def get_config_data(config_path: str) -> tuple[str, str, str]:
 
     organization_name = safe_get(config, "organization_name")
     channel_id = safe_get(config, "channel_id")
+    database_path = safe_get(config, "database_path")
     api_key = environ.get("SAM_API_KEY")
     if api_key is None:
         logger.error("Couldn't load Discord API key from enviromental variables")
         sys.exit(1)
 
-    return organization_name, channel_id, api_key
+    config_data = ConfigData(
+        organization_name=organization_name,
+        channel_id=channel_id,
+        database_path=database_path,
+        api_key=api_key
+    )
+
+    return config_data
+
 
 def main():
     """
@@ -115,19 +133,24 @@ def main():
     """
     logger.info("Starting Sam...Welcome!")
 
-    organization_name, channel_id, api_key = get_config_data(CONFIG_PATH)
-    logger.info("Config loaded! Found org name: %s, channel id %s and API key", organization_name, channel_id)
+    config_data = get_config_data(CONFIG_PATH)
+    logger.info(
+        "Config loaded! Found org name: %s, channel id %s and API key",
+        config_data.organization_name,
+        config_data.channel_id,
+    )
 
-    channel_id = int(channel_id)
+    channel_id = int(config_data.channel_id)
     intents = discord.Intents.default()
     logger.info("Set Discord intents to default")
 
-    sam = Sam(organization_name)
+    sam = Sam(config_data.organization_name, config_data.database_path)
     logger.info("Started Sam OK")
 
     client = DiscordGateway(sam=sam, channel_id=channel_id, intents=intents)
     logger.info("Started Discord Gateway OK. Running...")
-    client.run(api_key)
+    client.run(config_data.api_key)
+
 
 if __name__ == "__main__":
     main()
