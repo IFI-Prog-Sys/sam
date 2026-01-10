@@ -137,8 +137,8 @@ class Sam:
         self._organization_name = peoply_organization_name
 
         # TODO this smells like the problem child
-        self._pending_events: dict[str, Event] = {}
-        self._cached_event_ids: dict[str, datetime] = {}
+        self._cached_events: dict[str, Event] = {}
+        self._sam_event_last_updated: dict[str, datetime] = {}
         self._outbound_event_queue: list[Event] = []
         self._last_update = self.__get_curent_formatted_time()
         self._last_extraction = self.__get_curent_formatted_time()
@@ -383,7 +383,7 @@ class Sam:
         current_time = datetime.fromisoformat(self.__get_curent_formatted_time())
         to_be_deleted = []
 
-        for event_key, event in self._pending_events.items():
+        for event_key, event in self._cached_events.items():
             comparison_result = self.__compare_time(current_time, event.date_time)
 
             match comparison_result:
@@ -394,11 +394,11 @@ class Sam:
 
         if len(to_be_deleted) > 0:
             logger.info(
-                f"Purging {len(to_be_deleted)} events from queue of size {len(self._pending_events)}."
+                f"Purging {len(to_be_deleted)} events from queue of size {len(self._cached_events)}."
             )
 
         for event_key in to_be_deleted:
-            del self._pending_events[event_key]
+            del self._cached_events[event_key]
 
     def __event_exists_in_cache(self, raw_event_json) -> bool:
         """
@@ -416,38 +416,39 @@ class Sam:
             True if the event should be treated as existing (no new action),
             False if it's new or updated and should be processed.
         """
-        link_id = raw_event_json.get("urlId")
-        last_updated = datetime.fromisoformat(
+        event_link_id = raw_event_json.get("urlId")
+        new_event_last_updated = datetime.fromisoformat(
             self.__safe_json_get("updatedAt", raw_event_json)
         )
 
-        # Check for errors first
-        if link_id is None or last_updated == "null":
+        if event_link_id is None or new_event_last_updated == "null":
             logger.critical(
                 "JSON integrity issue when checking cache. Assuming event exists"
             )
             return True
 
-        # Check for redundancy after
-        if link_id in self._cached_event_ids:
-            old_time = self._cached_event_ids[link_id]
-            time_comparison_verdict = self.__compare_time(old_time, last_updated)
+        if event_link_id in self._sam_event_last_updated:
+            cached_event_last_updated = self._sam_event_last_updated[event_link_id]
+            time_comparison_verdict = self.__compare_time(cached_event_last_updated, new_event_last_updated)
             match time_comparison_verdict:
                 case Comparison.EVENT_EXPIRED:
                     logger.critical(
-                        "Cached event has newer 'updatedAt' time. Assuming event exists"
+                        "Cached event has newer 'updatedAt' time. Defaulting to not updating cache"
                     )
                     return True
                 case Comparison.EVENT_ONGOING:
                     return True
                 case Comparison.EVENT_VALID:
-                    self._cached_event_ids[link_id] = (
-                        last_updated  # Update cache with new last updated time
+                    self._sam_event_last_updated[event_link_id] = (
+                        new_event_last_updated  # Update cache with new last updated time
                     )
                     return False
-        else:
-            self._cached_event_ids[link_id] = last_updated
-            return False
+                case _:
+                    logger.critical(
+                        "Reached default case in __event_exists. Defaulting to not updating cache"
+                    )
+                    return True
+        return False
 
     def __parse_raw_event_data(self, raw_event_json) -> Event:
         """
@@ -492,8 +493,11 @@ class Sam:
         """
         if self.__event_exists_in_cache(raw_event):
             return
+
         event = self.__parse_raw_event_data(raw_event)
-        self._pending_events[event.id] = event
+
+        self._sam_event_last_updated[event.id] = event.last_updated
+        self._cached_events[event.id] = event
         self._outbound_event_queue.append(event)
 
     async def __update_sam_events_list(self):
@@ -501,7 +505,6 @@ class Sam:
         Refresh the internal list of events from the Peoply API.
 
         Steps:
-        - Purges expired or ongoing events from the pending cache.
         - Fetches latest raw events since the last update time.
         - Deduplicates and queues new/updated events.
         - Advances the internal last-update checkpoint on success-like paths.
@@ -511,6 +514,7 @@ class Sam:
             logging and skipping the commit.
         """
         get_events_response = await self.__get_latest_raw_events()
+        events_last_updated = self.__get_curent_formatted_time()
 
         match get_events_response:
             case SamError.HTTP:
@@ -540,12 +544,13 @@ class Sam:
                 )
                 return
 
-        self._last_update = self.__get_curent_formatted_time()
+        # Only commit last updated time if no errors occur
+        self._last_update = events_last_updated
 
-    def purge_expired_events(self):
+    def purge_expired_events(self): # Step 1 of update schedule in Discord Gateway
         self.__purge_expired_events()
 
-    async def update_latest_events(self):
+    async def update_latest_events(self): # Step 2 of update schedule in Discord Gateway
         """
         Public method to trigger a refresh of the latest events.
 
@@ -553,7 +558,7 @@ class Sam:
         """
         await self.__update_sam_events_list()
 
-    def extract_latest_events(self) -> list[Event]:
+    def extract_latest_events(self) -> list[Event]: # Step 3 of update schedule in Discord Gateway
         """
         Retrieve and clear the queue of newly discovered or updated events.
 
@@ -564,7 +569,7 @@ class Sam:
         outbound_event_queue = self._outbound_event_queue
         if len(outbound_event_queue) > 0:
             logger.info(
-                f"Extracted {len(outbound_event_queue)} new/updated events. {len(self._pending_events)} events in pending queue."
+                f"Extracted {len(outbound_event_queue)} new/updated events. {len(self._cached_events)} events in pending queue."
             )
         self._outbound_event_queue = []
         return outbound_event_queue
