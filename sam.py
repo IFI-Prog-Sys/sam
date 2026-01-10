@@ -37,6 +37,7 @@ handler_error.setFormatter(logger_formatter)
 logger.addHandler(handler_info)
 logger.addHandler(handler_error)
 
+
 class Comparison(Enum):
     """
     Enumeration describing temporal comparison outcomes between two datetimes.
@@ -50,6 +51,7 @@ class Comparison(Enum):
     EVENT_VALID = 0
     EVENT_EXPIRED = 1
     EVENT_ONGOING = 2
+
 
 class SamError(Enum):
     """
@@ -68,6 +70,7 @@ class SamError(Enum):
     METADATA_NOT_FOUND = 3
     NOT_A_TAG = 4
     JSON_CONVERSION = 5
+
 
 @dataclass
 class Event:
@@ -91,6 +94,7 @@ class Event:
     place: str
     id: str
     link: str
+
 
 class Sam:
     """
@@ -136,7 +140,6 @@ class Sam:
 
         self._organization_name = peoply_organization_name
 
-        # TODO this smells like the problem child
         self._cached_events: dict[str, Event] = {}
         self._sam_event_last_updated: dict[str, datetime] = {}
         self._outbound_event_queue: list[Event] = []
@@ -235,7 +238,8 @@ class Sam:
             try:
                 session = await self.__get_session()
                 async with session.get(
-                    f"https://peoply.app/orgs/{self._organization_name}", headers=self._regular_header
+                    f"https://peoply.app/orgs/{self._organization_name}",
+                    headers=self._regular_header,
                 ) as response:
                     if response.status >= 400:
                         logger.error(
@@ -429,7 +433,9 @@ class Sam:
 
         if event_link_id in self._sam_event_last_updated:
             cached_event_last_updated = self._sam_event_last_updated[event_link_id]
-            time_comparison_verdict = self.__compare_time(cached_event_last_updated, new_event_last_updated)
+            time_comparison_verdict = self.__compare_time(
+                cached_event_last_updated, new_event_last_updated
+            )
             match time_comparison_verdict:
                 case Comparison.EVENT_EXPIRED:
                     logger.critical(
@@ -547,7 +553,7 @@ class Sam:
         # Only commit last updated time if no errors occur
         self._last_update = events_last_updated
 
-    def purge_expired_events(self): # Step 1 of update schedule in Discord Gateway
+    def purge_expired_events(self):  # Step 1 of update schedule in Discord Gateway
         """
         Public method to trigger the expiration of events.
 
@@ -555,7 +561,9 @@ class Sam:
         """
         self.__purge_expired_events()
 
-    async def update_latest_events(self): # Step 2 of update schedule in Discord Gateway
+    async def update_latest_events(
+        self,
+    ):  # Step 2 of update schedule in Discord Gateway
         """
         Public method to trigger a refresh of the latest events.
 
@@ -563,7 +571,9 @@ class Sam:
         """
         await self.__update_sam_events_list()
 
-    def extract_latest_events(self) -> list[Event]: # Step 3 of update schedule in Discord Gateway
+    def extract_latest_events(
+        self,
+    ) -> list[Event]:  # Step 3 of update schedule in Discord Gateway
         """
         Retrieve and clear the queue of newly discovered or updated events.
 

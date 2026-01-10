@@ -50,6 +50,7 @@ handler_error.setFormatter(logger_formatter)
 logger.addHandler(handler_info)
 logger.addHandler(handler_error)
 
+
 def get_config_data(config_path: str) -> tuple[str, str, str]:
     """
     Reads configuration data from a YAML file and environment variables.
@@ -106,6 +107,7 @@ def get_config_data(config_path: str) -> tuple[str, str, str]:
 
     return organization_name, channel_id, api_key
 
+
 def main():
     """
     Main entry point for the Sam the Scraper bot.
@@ -116,7 +118,11 @@ def main():
     logger.info("Starting Sam...Welcome!")
 
     organization_name, channel_id, api_key = get_config_data(CONFIG_PATH)
-    logger.info("Config loaded! Found org name: %s, channel id %s and API key", organization_name, channel_id)
+    logger.info(
+        "Config loaded! Found org name: %s, channel id %s and API key",
+        organization_name,
+        channel_id,
+    )
 
     channel_id = int(channel_id)
     intents = discord.Intents.default()
@@ -128,6 +134,7 @@ def main():
     client = DiscordGateway(sam=sam, channel_id=channel_id, intents=intents)
     logger.info("Started Discord Gateway OK. Running...")
     client.run(api_key)
+
 
 if __name__ == "__main__":
     main()
