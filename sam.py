@@ -509,6 +509,7 @@ class Sam:
             DELETE FROM events
             WHERE id={event_key}
             """)
+        self._database_connection.commit()
 
     def __event_exists_in_cache(self, raw_event_json) -> bool:
         """
