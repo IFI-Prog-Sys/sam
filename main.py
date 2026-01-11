@@ -65,12 +65,15 @@ class ConfigData:
         The ID of the target Discord channel.
     database_path : str
         The file path to the SQLite database.
+    expose_api : bool
+        Determines if the API should be enabled or not 
     api_key : str
         The Discord API key used for authentication.
     """
     organization_name: str
     channel_id: str
     database_path: str
+    expose_api: bool
     api_key: str
 
 
@@ -124,6 +127,8 @@ def get_config_data(config_path: str) -> ConfigData:
     organization_name = safe_get(config, "organization_name")
     channel_id = safe_get(config, "channel_id")
     database_path = safe_get(config, "database_path")
+    expose_api = safe_get(config, "expose_api")
+    expose_api = True if expose_api == "true" else False
     api_key = environ.get("SAM_API_KEY")
     if api_key is None:
         logger.error("Couldn't load Discord API key from enviromental variables")
@@ -133,7 +138,8 @@ def get_config_data(config_path: str) -> ConfigData:
         organization_name=organization_name,
         channel_id=channel_id,
         database_path=database_path,
-        api_key=api_key,
+        expose_api=expose_api,
+        api_key=api_key
     )
 
     return config_data
@@ -159,7 +165,7 @@ def main():
     intents = discord.Intents.default()
     logger.info("Set Discord intents to default")
 
-    sam = Sam(config_data.organization_name, config_data.database_path)
+    sam = Sam(config_data.organization_name, config_data.database_path, config_data.expose_api)
     logger.info("Started Sam OK")
 
     client = DiscordGateway(sam=sam, channel_id=channel_id, intents=intents)

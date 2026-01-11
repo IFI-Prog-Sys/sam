@@ -8,6 +8,7 @@ A basic async API data fetcher and processor.
 :license: MIT, see LICENSE for more details.
 """
 
+import threading
 import json
 from dataclasses import dataclass
 from enum import Enum
@@ -15,8 +16,11 @@ from datetime import datetime, timezone
 import logging
 import sys
 import sqlite3
+import threading
 import aiohttp
 from bs4 import BeautifulSoup, Tag
+from fastapi import FastAPI
+from uvicorn import Config, Server
 
 TEN_SECONDS = 10
 
@@ -113,6 +117,7 @@ class Sam:
         self,
         peoply_organization_name: str,
         database_path: str,
+        expose_api: bool,
         session: aiohttp.ClientSession | None = None,
     ):
         """
@@ -175,6 +180,17 @@ class Sam:
             self.__recall_past_events()
             logger.info("Recall OK")
 
+        if expose_api:
+            self._api = FastAPI()
+
+            @self._api.get("/")
+            def api_root():
+                return self.__serialize_cached_events()
+            
+            self._server = None
+            self._server_thread = None
+            self.__start_api_server()
+
         logger.info("Initialising Sam 1/2 DONE.")
 
     async def init(self):
@@ -192,6 +208,43 @@ class Sam:
         logger.info(f"Fetched organization UID: {self._organization_uuid}.")
         logger.info("Initialising Sam 2/2 DONE.")
         logger.info("Initialising Sam OK.")
+
+    def __start_api_server(self):
+        if self._server is not None:
+            return
+
+        config = Config(app=self._api, host="0.0.0.0", port=8000, log_level="info")
+        self._server = Server(config=config)
+
+        def _run(self):
+            self._server.run()
+
+        self._server_thread = threading.Thread(target=_run, daemon=True)
+        self._server_thread.start()
+
+    def __stop_api_server(self):
+        if self._server is None:
+            return
+        
+        self._server.should_exit = True
+        if self._server_thread and self._server_thread.is_alive():
+            self._server_thread.join(timeout=5)
+        self._server = None
+        self._server_thread = None
+
+    def __serialize_cached_events(self) -> list[dict]:
+        def serialize_event(event: Event) -> dict[str, str]:
+            return {
+                "title":event.title,
+                "description":event.description,
+                "date_time":str(event.date_time),
+                "last_updated":str(event.last_updated),
+                "place":event.place,
+                "id":event.id,
+                "link":event.link
+            }
+
+        return [serialize_event(event) for event in self._cached_events.values()]
 
     def __deserialize_raw_event(self, raw_event: tuple) -> Event:
         event = Event(
@@ -660,3 +713,5 @@ class Sam:
 
         self._database_connection.commit()
         self._database_connection.close()
+        
+        self.__stop_api_server()
