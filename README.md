@@ -26,7 +26,6 @@ __**Warning:** Sam requires Python >= 3.10__
 ```bash
 $ pip install -r requirements.txt
 ```
-**Note:** If you prefer; a nix.shell file can be found on the development branch.
 
 2. Create an application in the Discord Developer Portal
 3. Edit `config.yaml` and set the `organization_name`, `channel_id`, `database_path`, and `expose_api`.
