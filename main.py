@@ -125,7 +125,7 @@ def get_config_data(config_path: str) -> ConfigData:
 
     config = load_config()
 
-    organization_name = safe_get(config, "organization_name")
+    organization_name = safe_get(config, "organization_name").lower()
     channel_id = safe_get(config, "channel_id")
     database_path = safe_get(config, "database_path")
     expose_api = safe_get(config, "expose_api")
