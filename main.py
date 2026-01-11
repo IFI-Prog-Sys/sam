@@ -50,6 +50,7 @@ handler_error.setFormatter(logger_formatter)
 
 logger.addHandler(handler_info)
 logger.addHandler(handler_error)
+logger.propagate = False
 
 
 @dataclass
@@ -170,6 +171,11 @@ def main():
 
     client = DiscordGateway(sam=sam, channel_id=channel_id, intents=intents)
     logger.info("Started Discord Gateway OK. Running...")
+
+    # Prevent duplicate logs from discord.py (which sets up its own handler)
+    # propagating to the root logger (likely configured by uvicorn)
+    logging.getLogger("discord").propagate = False
+
     client.run(config_data.api_key)
 
 

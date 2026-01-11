@@ -40,6 +40,7 @@ handler_error.setFormatter(logger_formatter)
 
 logger.addHandler(handler_info)
 logger.addHandler(handler_error)
+logger.propagate = False
 
 
 class Comparison(Enum):
@@ -167,11 +168,11 @@ class Sam:
         logger.info("Connect to database OK")
 
         query_result = self._database_cursor.execute("SELECT * FROM sqlite_master")
-        table_not_exist = query_result.fetchone is None
+        table_not_exist = query_result.fetchone() is None
         if table_not_exist:
             logger.info("Database was empty; Creating new table")
             self._database_cursor.execute(
-                "CREATE TABLE events(title, description, date_time, last_updated, place, id link)"
+                "CREATE TABLE events(title, description, date_time, last_updated, place, id, link)"
             )
             logger.info("Create Table OK")
         else:
@@ -179,6 +180,8 @@ class Sam:
             self.__recall_past_events()
             logger.info("Recall OK")
 
+        self._server = None
+        self._server_thread = None
         if expose_api:
             self._api = FastAPI()
 
@@ -186,8 +189,6 @@ class Sam:
             def api_root():
                 return self.__serialize_cached_events()
             
-            self._server = None
-            self._server_thread = None
             self.__start_api_server()
 
         logger.info("Initialising Sam 1/2 DONE.")
