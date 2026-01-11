@@ -15,8 +15,11 @@ from datetime import datetime, timezone
 import logging
 import sys
 import sqlite3
+import threading
 import aiohttp
 from bs4 import BeautifulSoup, Tag
+from fastapi import FastAPI
+from uvicorn import Config, Server
 
 TEN_SECONDS = 10
 
@@ -37,6 +40,7 @@ handler_error.setFormatter(logger_formatter)
 
 logger.addHandler(handler_info)
 logger.addHandler(handler_error)
+logger.propagate = False
 
 
 class Comparison(Enum):
@@ -113,6 +117,7 @@ class Sam:
         self,
         peoply_organization_name: str,
         database_path: str,
+        expose_api: bool,
         session: aiohttp.ClientSession | None = None,
     ):
         """
@@ -123,6 +128,8 @@ class Sam:
                 the organization page and derive the internal UUID.
             database_path: The file path to the SQLite database used for
                 persistent event storage.
+            expose_api: Boolean indicating whether to start the FastAPI server
+                to expose cached events via HTTP.
             session: Optional externally managed aiohttp.ClientSession. If not
                 provided, Sam will lazily create and manage its own session.
 
@@ -163,17 +170,28 @@ class Sam:
         logger.info("Connect to database OK")
 
         query_result = self._database_cursor.execute("SELECT * FROM sqlite_master")
-        table_not_exist = query_result.fetchone is None
+        table_not_exist = query_result.fetchone() is None
         if table_not_exist:
             logger.info("Database was empty; Creating new table")
             self._database_cursor.execute(
-                "CREATE TABLE events(title, description, date_time, last_updated, place, id link)"
+                "CREATE TABLE events(title, description, date_time, last_updated, place, id, link)"
             )
             logger.info("Create Table OK")
         else:
             logger.info("Database already populdated. Recalling events")
             self.__recall_past_events()
             logger.info("Recall OK")
+
+        self._server = None
+        self._server_thread = None
+        if expose_api:
+            self._api = FastAPI()
+
+            @self._api.get("/")
+            def api_root():
+                return self.__serialize_cached_events()
+            
+            self.__start_api_server()
 
         logger.info("Initialising Sam 1/2 DONE.")
 
@@ -192,6 +210,43 @@ class Sam:
         logger.info(f"Fetched organization UID: {self._organization_uuid}.")
         logger.info("Initialising Sam 2/2 DONE.")
         logger.info("Initialising Sam OK.")
+
+    def __start_api_server(self):
+        if self._server is not None:
+            return
+
+        config = Config(app=self._api, host="0.0.0.0", port=8000, log_level="info")
+        self._server = Server(config=config)
+
+        def _run(self):
+            self._server.run()
+
+        self._server_thread = threading.Thread(target=_run, daemon=True, args=[self])
+        self._server_thread.start()
+
+    def __stop_api_server(self):
+        if self._server is None:
+            return
+        
+        self._server.should_exit = True
+        if self._server_thread and self._server_thread.is_alive():
+            self._server_thread.join(timeout=5)
+        self._server = None
+        self._server_thread = None
+
+    def __serialize_cached_events(self) -> list[dict]:
+        def serialize_event(event: Event) -> dict[str, str]:
+            return {
+                "title":event.title,
+                "description":event.description,
+                "date_time":str(event.date_time),
+                "last_updated":str(event.last_updated),
+                "place":event.place,
+                "id":event.id,
+                "link":event.link
+            }
+
+        return [serialize_event(event) for event in self._cached_events.values()]
 
     def __deserialize_raw_event(self, raw_event: tuple) -> Event:
         event = Event(
@@ -454,6 +509,7 @@ class Sam:
             DELETE FROM events
             WHERE id={event_key}
             """)
+        self._database_connection.commit()
 
     def __event_exists_in_cache(self, raw_event_json) -> bool:
         """
@@ -660,3 +716,5 @@ class Sam:
 
         self._database_connection.commit()
         self._database_connection.close()
+        
+        self.__stop_api_server()

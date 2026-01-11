@@ -5,6 +5,7 @@ Description=Sam the Scraper
 ExecStart=/usr/bin/python3 /path/to/main.py
 WorkingDirectory=/path/to/sam/folder
 Environment=SAM_API_KEY=your_api_key_here
+Restart=always
 
 [Install]
 WantedBy=default.target
