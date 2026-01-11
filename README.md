@@ -1,5 +1,5 @@
 # Sam the Scraper
-Prog.Sys();'s one and only Peoply scraper bot
+A Python bot by Prog.Sys(); for scraping event metadata from Peoply.app.
 
 ## Basic Overview
 Sam is a Python bot that pulls event metadata for the specified organization from Peoply.app and posts it in a
@@ -7,8 +7,7 @@ Discord channel.
 
 The bot runs on Python, but is launched and managed by systemd.
 
-## File structure
-**Note:** Only files necessary for runtime are included
+## Key Files (Runtime)
 ```
 sam/
 ├── config.yaml
@@ -17,38 +16,59 @@ sam/
 └── sam.py
 ```
 
-## Getting started
-__**Warning:** Sam requires Python >= 3.10__
+## Prerequisites
+Sam requires Python >= 3.10.
 
-**Note:** Sam has currently been tested on Python 3.13.8 running on NixOS 25.05, and on Python 3.12.9 running on Oracle Linux Server release 9.6
+**Note:** Sam has been tested on Python 3.13.8 (NixOS 25.05) and Python 3.12.9 (Oracle Linux Server release 9.6).
 
-1. Install all the project dependencies with:
+## Setup
+
+Follow these steps to set up and run Sam:
+
+### 1. Install Dependencies
+Install the required Python packages:
 ```bash
-$ pip install -r requirements.txt
+pip install -r requirements.txt
 ```
 
-2. Create an application in the Discord Developer Portal
-3. Edit `config.yaml` and set the `organization_name`, `channel_id`, `database_path`, and `expose_api`.
-4. Obtain your Discord Application API key. This will need to be provided as the `SAM_API_KEY` environment variable.
-5. Invite your new Discord application into your server with the following permissions:
+### 2. Discord Application Setup
+1. Create a new application in the Discord Developer Portal.
+2. Obtain your Discord Application API key. This key must be provided as the `SAM_API_KEY` environment variable when running Sam.
+3. Invite your new Discord application to your server with the following permissions:
     - View Channels
     - Send Messages
     - Send Messages in Threads
     - Attach Files
     - Mention @everyone, @here and All Roles
-    - **Note:** There is a good chance not all these permissions are strictly speaking necessary but these are what have worked for us.
-6. Edit "sam.service" (found under "install\_files"):
-    - Specify the `ExecStart` path (python3 and main.py)
-    - Specify the `WorkingDirectory` (path to sam files)
-    - Set the `SAM_API_KEY` environment variable
+    **Note:** Not all of these permissions may be strictly necessary, but they have proven to work.
+
+### 3. Configuration
+Edit `config.yaml` to set the following:
+- `organization_name`
+- `channel_id`
+- `database_path`
+- `expose_api`
+
+### 4. Systemd Service Setup
+1. Locate `sam.service` under the `install_files/` directory.
+2. Edit `sam.service` to specify:
+    - `ExecStart` path (e.g., `python3 /path/to/main.py`)
+    - `WorkingDirectory` (path to Sam's files)
+    - The `SAM_API_KEY` environment variable
     - Confirm the `Restart` policy is set to `always`
-7. Copy the provided sam.service file into "/etc/systemd/user/" 
-8. Start the service by running
+3. Copy the configured `sam.service` file into `/etc/systemd/user/`.
+
+### 5. Running the Service
+Start the Sam service:
 ```bash
-$ systemctl --user start sam.service
+systemctl --user start sam.service
 ```
-9. *(optional)* Enable auto startup by running:
+
+### 6. (Optional) Enable Auto-startup
+To automatically start Sam on system boot:
 ```bash
-$ systemctl --user enable sam.service
+systemctl --user enable sam.service
 ```
-**Note:** Sam uses a SQLite database to persist event history across restarts.
+
+## Additional Notes
+Sam uses a SQLite database to persist event history across restarts.
