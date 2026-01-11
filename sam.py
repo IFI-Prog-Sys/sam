@@ -147,7 +147,7 @@ class Sam:
         }
         self._api_header = {
             "Accept": "application/json",
-            "User-Agent": "SamTheScraper/1.0 (+https://github.com/IFI-Prog-Sys/sam/)",
+            "User-Agent": "SamTheScraper/2.0 (+https://github.com/IFI-Prog-Sys/sam/)",
         }
 
         self._organization_name = peoply_organization_name
