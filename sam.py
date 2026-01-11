@@ -8,7 +8,6 @@ A basic async API data fetcher and processor.
 :license: MIT, see LICENSE for more details.
 """
 
-import threading
 import json
 from dataclasses import dataclass
 from enum import Enum
