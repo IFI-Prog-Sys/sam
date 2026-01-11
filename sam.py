@@ -219,7 +219,7 @@ class Sam:
         def _run(self):
             self._server.run()
 
-        self._server_thread = threading.Thread(target=_run, daemon=True)
+        self._server_thread = threading.Thread(target=_run, daemon=True, args=[self])
         self._server_thread.start()
 
     def __stop_api_server(self):
