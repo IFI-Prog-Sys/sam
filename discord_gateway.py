@@ -13,11 +13,13 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import logging
 import sys
+from random import randint
 import discord
 from discord.ext import tasks
 from sam import Sam
 
 SIXTY_SECONDS = 60
+OFFSET = randint(1, 10)
 
 logger = logging.getLogger("Sam.DiscordGateway")
 logger.setLevel(logging.DEBUG)
@@ -83,6 +85,7 @@ class DiscordGateway(discord.Client):
 
         # Keep track of sent messages for events for future editing
         self._sent_messages: dict[str, EventMessage] = {}  # event id -> message id
+        logger.info("Set event loop offset to %s seconds", OFFSET)
         logging.info("Initialising Discord Gateway 1/3 DONE")
 
     async def setup_hook(self):
@@ -146,7 +149,7 @@ class DiscordGateway(discord.Client):
         for purge_candidate_key in chopping_block:
             del self._sent_messages[purge_candidate_key]
 
-    @tasks.loop(seconds=SIXTY_SECONDS)
+    @tasks.loop(seconds=SIXTY_SECONDS + OFFSET)
     async def periodic_update_events(self):
         """
         Periodic task loop that fetches, posts, and updates event messages.
