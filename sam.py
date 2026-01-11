@@ -16,6 +16,8 @@ import logging
 import sys
 import sqlite3
 import threading
+import asyncio
+from random import randint
 import aiohttp
 from bs4 import BeautifulSoup, Tag
 from fastapi import FastAPI
@@ -329,6 +331,11 @@ class Sam:
             RuntimeError: When required metadata is missing or malformed.
             TypeError: If the organization page fetch returns an unexpected type.
         """
+        # Add jitter to prevent thundering herd during startup
+
+        jitter = randint(1,5)
+        logger.info("Adding %s seconds of jitter to organization UUID request", jitter)
+        await asyncio.sleep(jitter)
 
         async def get_raw_organization_page() -> str | SamError:
             """
@@ -443,6 +450,9 @@ class Sam:
         Returns:
             A list or dict of raw event JSON on success, or a SamError on failure.
         """
+        # Add jitter to prevent thundering herd
+        await asyncio.sleep(randint(1, 5))
+
         api_endpoint = f"https://api.peoply.app/events?afterDate={self._last_update}&organizationId={self._organization_uuid}"
         try:
             session = await self.__get_session()
