@@ -7,6 +7,7 @@ discord-py==2.6.4
 fastapi==0.116.1
 importlib-metadata==8.0.0
 jaraco.collections==5.1.0
+lxml==6.0.2
 packaging==24.2
 pip-chill==1.0.2
 pylint==3.3.7
