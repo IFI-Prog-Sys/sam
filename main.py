@@ -98,7 +98,7 @@ def get_config_data(config_path: str) -> ConfigData:
     Returns
     -------
     ConfigData
-        A dataclass containing the organization name, channel ID, database path and API key.
+        A dataclass containing the organization name, channel ID, database path, expose_api flag, and API key.
     """
 
     def load_config():

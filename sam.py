@@ -128,6 +128,8 @@ class Sam:
                 the organization page and derive the internal UUID.
             database_path: The file path to the SQLite database used for
                 persistent event storage.
+            expose_api: Boolean indicating whether to start the FastAPI server
+                to expose cached events via HTTP.
             session: Optional externally managed aiohttp.ClientSession. If not
                 provided, Sam will lazily create and manage its own session.
 

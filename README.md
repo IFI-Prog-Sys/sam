@@ -29,7 +29,7 @@ $ pip install -r requirements.txt
 **Note:** If you prefer; a nix.shell file can be found on the development branch.
 
 2. Create an application in the Discord Developer Portal
-3. Edit `config.yaml` and set the `organization_name`, `channel_id`, and `database_path`.
+3. Edit `config.yaml` and set the `organization_name`, `channel_id`, `database_path`, and `expose_api`.
 4. Obtain your Discord Application API key. This will need to be provided as the `SAM_API_KEY` environment variable.
 5. Invite your new Discord application into your server with the following permissions:
     - View Channels
@@ -42,6 +42,7 @@ $ pip install -r requirements.txt
     - Specify the `ExecStart` path (python3 and main.py)
     - Specify the `WorkingDirectory` (path to sam files)
     - Set the `SAM_API_KEY` environment variable
+    - Confirm the `Restart` policy is set to `always`
 7. Copy the provided sam.service file into "/etc/systemd/user/" 
 8. Start the service by running
 ```bash
