@@ -515,10 +515,10 @@ class Sam:
 
         for event_key in to_be_deleted:
             del self._cached_events[event_key]
-            self._database_cursor.execute(f"""
+            self._database_cursor.execute("""
             DELETE FROM events
-            WHERE id={event_key}
-            """)
+            WHERE id=?
+            """, (event_key,))
         self._database_connection.commit()
 
     def __event_exists_in_cache(self, raw_event_json) -> bool:
@@ -623,10 +623,10 @@ class Sam:
         self._cached_events[event.id] = event
         self._outbound_event_queue.append(event)
 
-        self._database_cursor.execute(f"""
+        self._database_cursor.execute("""
             INSERT INTO events VALUES
-            ('{event.title}', '{event.description}', '{event.date_time}', '{event.last_updated}', '{event.place}', '{event.id}', '{event.link}')
-        """)
+            (?, ?, ?, ?, ?, ?, ?)
+        """, (event.title, event.description, event.date_time, event.last_updated, event.place, event.id, event.link))
         self._database_connection.commit()
 
     async def __update_sam_events_list(self):
