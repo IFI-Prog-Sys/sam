@@ -11,6 +11,7 @@ A basic interface class meant to connect Sam the Scraper and the Discord API.
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 import logging
 import sys
 from random import randint
@@ -188,7 +189,13 @@ class DiscordGateway(discord.Client):
 
                 logger.info("Connected to channel %s", self.channel_id)
                 for event in events:
-                    human_readable_time = event.date_time.strftime(
+                    # Convert to Europe/Oslo (CEST)
+                    utc_time = event.date_time
+                    if utc_time.tzinfo is None:
+                        utc_time = utc_time.replace(tzinfo=timezone.utc)
+                    
+                    local_time = utc_time.astimezone(ZoneInfo("Europe/Oslo"))
+                    human_readable_time = local_time.strftime(
                         "%d.%m.%Y | kl. %H:%M"
                     )
 
